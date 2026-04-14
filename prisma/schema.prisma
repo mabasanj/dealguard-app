@@ -1,0 +1,365 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum EscrowStatus {
+  PENDING
+  PAYMENT_PENDING
+  PAYMENT_CONFIRMED
+  GOODS_SHIPPED
+  GOODS_RECEIVED
+  COMPLETED
+  DISPUTED
+  CANCELLED
+  REFUNDED
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum CurrencyCode {
+  ZAR
+  BWP
+  NAD
+  MUR
+  MWK
+  MZN
+  RWF
+  SZL
+  TZS
+  UGX
+  ZMW
+  ZWL
+  USD
+  USDT
+  USDC
+  BUSD
+  DAI
+  BTC
+  ETH
+  LTC
+  BNB
+}
+
+enum SADC_Country {
+  ANGOLA
+  BOTSWANA
+  COMOROS
+  CONGO_DR
+  ESWATINI
+  LESOTHO
+  MADAGASCAR
+  MALAWI
+  MAURITIUS
+  MOZAMBIQUE
+  NAMIBIA
+  SEYCHELLES
+  SOUTH_AFRICA
+  TANZANIA
+  ZAMBIA
+  ZIMBABWE
+}
+
+enum WalletType {
+  FIAT
+  DIGITAL_WALLET
+  CRYPTO
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  INSTANT_EFT
+  CRYPTO
+  DIGITAL_WALLET
+  MOBILE_MONEY
+}
+
+model User {
+  id                    String     @id @default(cuid())
+  email                 String     @unique
+  name                  String
+  phone                 String?
+  emailVerified         DateTime?
+  password              String
+  role                  UserRole   @default(BUYER)
+  image                 String?
+  
+  // Profile
+  idNumber              String?    @unique
+  passportNumber        String?    @unique
+  country               SADC_Country?
+  passportCountry       SADC_Country?
+  passportExpiry        DateTime?
+  businessName          String?
+  businessRegistration String?
+  bankAccount           String?
+  
+  // South African specific
+  residentStatus        String?    // Citizen, Permanent Resident, etc.
+  province              String?
+  
+  // Verification
+  isVerified            Boolean    @default(false)
+  identityVerified      Boolean    @default(false)
+
+  // Subscription plan
+  plan                  PlanType   @default(FREE)
+  planStartedAt         DateTime?
+  planExpiresAt         DateTime?
+  
+  // Stats
+  rating                Float      @default(0)
+  completedTransactions Int       @default(0)
+  totalSpent            Float      @default(0)
+  totalEarned           Float      @default(0)
+  
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  // Relations
+  buyerEscrows          Escrow[]   @relation("buyer")
+  sellerEscrows         Escrow[]   @relation("seller")
+  walletBalance         WalletBalance?
+  payments              Payment[]
+  disputes              Dispute[]  @relation("initiator")
+  reviews               Review[]   @relation("reviewer")
+  receivedReviews       Review[]   @relation("reviewee")
+  sentMessages          ChatMessage[] @relation("sender")
+  receivedMessages      ChatMessage[] @relation("receiver")
+
+  @@index([email])
+  @@index([isVerified])
+}
+
+model WalletBalance {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  amount    Float    @default(0)
+  currency  String   @default("ZAR")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Escrow {
+  id                String     @id @default(cuid())
+  
+  // Parties
+  buyerId           String
+  sellerId          String
+  
+  // Transaction details
+  title             String
+  description       String
+  amount            Float      // ZAR amount
+  currency          String     @default("ZAR")
+  status            EscrowStatus @default(PENDING)
+  
+  // Items
+  itemsCount        Int
+  
+  // Dates
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  completedAt       DateTime?
+  
+  // Commission
+  platformFee       Float      @default(0)
+  sellerReceives    Float
+  
+  // Additional details
+  terms             String?
+  location          String?    // Pickup location
+  deliveryAddress   String?
+  
+  // References
+  reference         String     @unique // Transaction reference
+
+  buyer             User       @relation("buyer", fields: [buyerId], references: [id])
+  seller            User       @relation("seller", fields: [sellerId], references: [id])
+  payments          Payment[]
+  dispute           Dispute?
+  reviews           Review[]
+  chatMessages      ChatMessage[]
+  stellarTransactions StellarTransaction[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([reference])
+}
+
+model Payment {
+  id                String     @id @default(cuid())
+  
+  escrowId          String
+  userId            String
+  
+  amount            Float
+  currency          String     @default("ZAR")
+  method            PaymentMethod
+  
+  status            String     @default("pending") // pending, completed, failed, refunded
+  
+  stripePaymentId   String?
+  bankReference     String?
+  
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  completedAt       DateTime?
+
+  escrow            Escrow     @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id])
+
+  @@index([escrowId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Dispute {
+  id                String     @id @default(cuid())
+  
+  escrowId          String     @unique
+  initiatorId       String
+  
+  reason            String
+  description       String
+  status            DisputeStatus @default(OPEN)
+  
+  evidenceUrls      String @default("[]") // JSON array: ["url1", "url2"]
+  resolution        String?
+  resolutionAmount  Float?     // Amount to be paid if resolved
+  
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  resolvedAt        DateTime?
+
+  escrow            Escrow     @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  initiator         User       @relation("initiator", fields: [initiatorId], references: [id])
+
+  @@index([escrowId])
+  @@index([initiatorId])
+  @@index([status])
+}
+
+model Review {
+  id                String   @id @default(cuid())
+  
+  escrowId          String
+  reviewerId        String
+  revieweeId        String
+  
+  rating            Float    // 1-5 stars
+  comment           String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  escrow            Escrow   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  reviewer          User     @relation("reviewer", fields: [reviewerId], references: [id])
+  reviewee          User     @relation("reviewee", fields: [revieweeId], references: [id])
+
+  @@unique([escrowId, reviewerId])
+  @@index([escrowId])
+  @@index([reviewerId])
+  @@index([revieweeId])
+}
+
+model Notification {
+  id                String   @id @default(cuid())
+  
+  userId            String
+  type              String
+  title             String
+  message           String
+  link              String?
+  
+  isRead            Boolean  @default(false)
+  
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model ChatMessage {
+  id                String   @id @default(cuid())
+  
+  escrowId          String
+  senderId          String
+  receiverId        String
+  message           String
+  
+  isRead            Boolean  @default(false)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  escrow            Escrow   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  sender            User     @relation("sender", fields: [senderId], references: [id])
+  receiver          User     @relation("receiver", fields: [receiverId], references: [id])
+
+  @@index([escrowId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+model StellarTransaction {
+  id                String   @id @default(cuid())
+  
+  escrowId          String
+  transactionType   String   // "SETUP_ESCROW", "RELEASE_FUNDS", "SUBMIT_SIGNED"
+  
+  xdr               String   // Full transaction XDR
+  hash              String?  // Stellar transaction hash (ledger)
+  status            String   @default("pending") // pending, submitted, confirmed, failed
+  
+  buyerSignature    String?  // Buyer's signature if captured
+  appSignature      String?  // App signature
+  
+  errorMessage      String?  // Error details if failed
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  submittedAt       DateTime?
+  confirmedAt       DateTime?
+
+  escrow            Escrow   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId])
+  @@index([status])
+  @@index([transactionType])
+  @@index([hash])
+}
+

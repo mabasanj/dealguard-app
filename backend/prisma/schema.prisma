@@ -1,0 +1,447 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum PlanType {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  CLOSED
+}
+
+enum EscrowStatus {
+  PENDING
+  PENDING_PAYMENT
+  FUNDED
+  IN_DELIVERY
+  DELIVERED
+  COMPLETED
+  DISPUTED
+  RESOLVED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  INSTANT_EFT
+  CRYPTO
+  DIGITAL_WALLET
+  MOBILE_MONEY
+  WALLET
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER_OUT
+  TRANSFER_IN
+  ESCROW_PAYMENT
+  REFUND
+  PAYMENT
+  CREDIT
+  DEBIT
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+enum NotificationType {
+  ESCROW_CREATED
+  ESCROW_FUNDED
+  ESCROW_SHIPPED
+  ESCROW_DELIVERED
+  ESCROW_COMPLETED
+  DISPUTE_CREATED
+  DISPUTE_RESOLVED
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  NEW_MESSAGE
+  MESSAGE_RECEIVED
+  REVIEW_RECEIVED
+  SYSTEM_ALERT
+}
+
+enum CurrencyCode {
+  ZAR
+  BWP
+  NAD
+  MUR
+  MWK
+  MZN
+  RWF
+  SZL
+  TZS
+  UGX
+  ZMW
+  ZWL
+  USD
+  USDT
+  USDC
+  BUSD
+  DAI
+  BTC
+  ETH
+  LTC
+  BNB
+}
+
+enum SADC_Country {
+  ANGOLA
+  BOTSWANA
+  COMOROS
+  CONGO_DR
+  ESWATINI
+  LESOTHO
+  MADAGASCAR
+  MALAWI
+  MAURITIUS
+  MOZAMBIQUE
+  NAMIBIA
+  SEYCHELLES
+  SOUTH_AFRICA
+  TANZANIA
+  ZAMBIA
+  ZIMBABWE
+}
+
+enum WalletType {
+  FIAT
+  DIGITAL_WALLET
+  CRYPTO
+}
+
+model User {
+  id                    String     @id @default(cuid())
+
+  // Basic Info
+  email                 String     @unique
+  name                  String
+  phone                 String?
+  emailVerified         DateTime?
+  password              String
+  role                  UserRole   @default(BUYER)
+  image                 String?
+
+  // Profile
+  idNumber              String?    @unique
+  passportNumber        String?    @unique
+  country               SADC_Country?
+  passportCountry       SADC_Country?
+  passportExpiry        DateTime?
+  businessName          String?
+  businessRegistration String?
+  bankAccount           String?
+
+  // South African specific
+  residentStatus        String?    // Citizen, Permanent Resident, etc.
+  province              String?
+
+  // Verification
+  isVerified            Boolean    @default(false)
+  identityVerified      Boolean    @default(false)
+
+  // Subscription plan
+  plan                  PlanType   @default(FREE)
+  planStartedAt         DateTime?
+  planExpiresAt         DateTime?
+
+  // Stats
+  rating                Float      @default(0)
+  completedTransactions Int       @default(0)
+  totalSpent            Float      @default(0)
+  totalEarned           Float      @default(0)
+
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  // Relations
+  buyerEscrows          Escrow[]   @relation("buyer")
+  sellerEscrows         Escrow[]   @relation("seller")
+  walletBalance         WalletBalance?
+  payments              Payment[]
+  disputes              Dispute[]  @relation("initiator")
+  reviews               Review[]   @relation("reviewer")
+  receivedReviews       Review[]   @relation("reviewee")
+  sentMessages          ChatMessage[] @relation("sender")
+  receivedMessages      ChatMessage[] @relation("receiver")
+  disputeMessages       DisputeMessage[]
+  walletTransactions    WalletTransaction[]
+  sentWalletTransactions WalletTransaction[] @relation("walletTransactionSender")
+  receivedWalletTransactions WalletTransaction[] @relation("walletTransactionRecipient")
+
+  @@index([email])
+  @@index([isVerified])
+}
+
+model WalletBalance {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  amount    Float    @default(0)
+  currency  String   @default("ZAR")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Escrow {
+  id                String     @id @default(cuid())
+
+  // Parties
+  buyerId           String
+  sellerId          String
+
+  // Transaction details
+  title             String
+  description       String
+  amount            Float      // ZAR amount
+  currency          String     @default("ZAR")
+  status            EscrowStatus @default(PENDING)
+
+  // Items
+  itemsCount        Int
+
+  // Dates
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+
+  // Commission
+  platformFee       Float      @default(0)
+  sellerReceives    Float
+
+  // Additional details
+  terms             String?
+  location          String?    // Pickup location
+  deliveryAddress   String?
+
+  // References
+  reference         String     @unique // Transaction reference
+
+  buyer             User       @relation("buyer", fields: [buyerId], references: [id])
+  seller            User       @relation("seller", fields: [sellerId], references: [id])
+  payments          Payment[]
+  dispute           Dispute?
+  reviews           Review[]
+  chatMessages      ChatMessage[]
+  walletTransactions WalletTransaction[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([reference])
+}
+
+model Payment {
+  id                String     @id @default(cuid())
+
+  escrowId          String
+  userId            String
+
+  amount            Float
+  currency          String     @default("ZAR")
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  reference         String?    @unique
+
+  stripePaymentId   String?
+  bankReference     String?
+
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  completedAt       DateTime?
+
+  escrow            Escrow     @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id])
+  walletTransactions WalletTransaction[]
+
+  @@index([escrowId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Dispute {
+  id                String     @id @default(cuid())
+
+  escrowId          String     @unique
+  initiatorId       String
+
+  reason            String
+  description       String
+  status            DisputeStatus @default(OPEN)
+
+  evidenceUrls      Json        @default("[]")
+  resolution        String?
+  resolutionAmount  Float?     // Amount to be paid if resolved
+
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  resolvedAt        DateTime?
+
+  escrow            Escrow     @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  initiator         User       @relation("initiator", fields: [initiatorId], references: [id])
+  messages          DisputeMessage[]
+
+  @@index([escrowId])
+  @@index([initiatorId])
+  @@index([status])
+}
+
+model Review {
+  id                String   @id @default(cuid())
+
+  escrowId          String
+  reviewerId        String
+  revieweeId        String
+
+  rating            Float    // 1-5 stars
+  comment           String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  escrow            Escrow   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  reviewer          User     @relation("reviewer", fields: [reviewerId], references: [id])
+  reviewee          User     @relation("reviewee", fields: [revieweeId], references: [id])
+
+  @@unique([escrowId, reviewerId])
+  @@index([escrowId])
+  @@index([reviewerId])
+  @@index([revieweeId])
+}
+
+model ChatMessage {
+  id                String   @id @default(cuid())
+
+  escrowId          String
+  senderId          String
+  receiverId        String
+  message           String
+  messageType       MessageType @default(TEXT)
+  attachments       Json        @default("[]")
+
+  isRead            Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  escrow            Escrow   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  sender            User     @relation("sender", fields: [senderId], references: [id])
+  receiver          User     @relation("receiver", fields: [receiverId], references: [id])
+
+  @@index([escrowId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id                String   @id @default(cuid())
+
+  userId            String
+  type              NotificationType
+  title             String
+  message           String
+  link              String?
+  data              Json?   // JSON metadata
+
+  isRead            Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model WalletTransaction {
+  id                String   @id @default(cuid())
+
+  userId            String
+  amount            Float
+  currency          String   @default("ZAR")
+  transactionType   TransactionType
+  status            PaymentStatus @default(PENDING)
+  paymentMethod     PaymentMethod?
+  recipientId       String?
+  senderId          String?
+  
+  escrowId          String?  // If related to an escrow
+  paymentId         String?  // If related to a payment
+  reference         String?  @unique // Transaction reference
+  
+  description       String?
+  metadata          Json?  // JSON metadata
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sender            User?     @relation("walletTransactionSender", fields: [senderId], references: [id])
+  recipient         User?     @relation("walletTransactionRecipient", fields: [recipientId], references: [id])
+  escrow            Escrow?   @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  payment           Payment?  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([transactionType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DisputeMessage {
+  id                String   @id @default(cuid())
+
+  disputeId         String
+  senderId          String
+  message           String
+  messageType       MessageType @default(TEXT)
+  attachments       Json        @default("[]")
+  isResolution      Boolean  @default(false) // Is this a resolution message
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  dispute           Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  sender            User     @relation(fields: [senderId], references: [id])
+
+  @@index([disputeId])
+  @@index([senderId])
+  @@index([createdAt])
+}
