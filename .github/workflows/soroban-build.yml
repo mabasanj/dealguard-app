@@ -156,26 +156,16 @@ jobs:
           name: dealguard-escrow-wasm
           path: wasm/
 
-      - name: Configure Stellar testnet identity
-        env:
-          STELLAR_TESTNET_SECRET_KEY: ${{ secrets.STELLAR_TESTNET_SECRET_KEY }}
-        run: |
-          stellar keys add deployer --secret-key "$STELLAR_TESTNET_SECRET_KEY"
-          stellar keys address deployer
-
-      - name: Fund account via Friendbot
-        run: |
-          ACCOUNT=$(stellar keys address deployer)
-          curl "https://friendbot.stellar.org?addr=${ACCOUNT}"
-
       - name: Deploy contract to testnet
         id: deploy
+        env:
+          STELLAR_TESTNET_SECRET_KEY: ${{ secrets.STELLAR_TESTNET_SECRET_KEY }}
         run: |
           WASM_FILE=$(find wasm/ -name "*.wasm" | head -1)
           echo "Deploying $WASM_FILE to testnet..."
           CONTRACT_ID=$(stellar contract deploy \
             --wasm "$WASM_FILE" \
-            --source deployer \
+            --source-account "$STELLAR_TESTNET_SECRET_KEY" \
             --network testnet \
             2>&1 | grep -oE 'C[A-Z0-9]{55}' | head -1)
           echo "contract_id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
@@ -213,22 +203,17 @@ jobs:
           name: dealguard-escrow-wasm
           path: wasm/
 
-      - name: Configure Stellar mainnet identity
-        env:
-          STELLAR_MAINNET_SECRET_KEY: ${{ secrets.STELLAR_MAINNET_SECRET_KEY }}
-        run: |
-          stellar keys add deployer --secret-key "$STELLAR_MAINNET_SECRET_KEY"
-
       - name: Deploy contract to mainnet
         id: deploy
         env:
+          STELLAR_MAINNET_SECRET_KEY: ${{ secrets.STELLAR_MAINNET_SECRET_KEY }}
           STELLAR_RPC_URL: https://mainnet.sorobanrpc.com
         run: |
           WASM_FILE=$(find wasm/ -name "*.wasm" | head -1)
           echo "Deploying $WASM_FILE to mainnet..."
           CONTRACT_ID=$(stellar contract deploy \
             --wasm "$WASM_FILE" \
-            --source deployer \
+            --source-account "$STELLAR_MAINNET_SECRET_KEY" \
             --network mainnet \
             --rpc-url "$STELLAR_RPC_URL" \
             --network-passphrase "Public Global Stellar Network ; September 2015" \
