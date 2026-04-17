@@ -14,6 +14,10 @@ build/
 
 # Production
 dist/
+soroban/target/
+target/
+**/*.wasm
+**/.stellar/
 
 # Misc
 .DS_Store

@@ -24,6 +24,13 @@ export interface PaymentProvider {
   verifyPayment(referenceOrTransactionId: string): Promise<any>;
 }
 
+const normalizeFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:3000';
+
+const buildRedirectUrl = (baseUrl: string, params: Record<string, string>) => {
+  const searchParams = new URLSearchParams(params);
+  return `${baseUrl}?${searchParams.toString()}`;
+};
+
 // Paystack Payment Service
 export class PaystackService implements PaymentProvider {
   private apiKey: string;
@@ -367,9 +374,173 @@ export class StripeService implements PaymentProvider {
   }
 }
 
+export class StitchService implements PaymentProvider {
+  private apiKey: string;
+  private redirectUrl: string;
+
+  constructor(apiKey: string, redirectUrl?: string) {
+    this.apiKey = apiKey;
+    this.redirectUrl = redirectUrl || process.env.STITCH_REDIRECT_URL || `${normalizeFrontendBaseUrl()}/payments/stitch`;
+  }
+
+  async initializePayment(request: PaymentInitRequest) {
+    if (!this.apiKey) {
+      return {
+        success: false,
+        error: 'Stitch API key not configured'
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        checkout_url: buildRedirectUrl(this.redirectUrl, {
+          provider: 'stitch',
+          reference: request.reference,
+          amount: request.amount.toFixed(2),
+          currency: request.currency || 'ZAR'
+        }),
+        provider_reference: request.reference,
+        collection_method: 'eft'
+      },
+      message: 'Stitch EFT collection session created'
+    };
+  }
+
+  async verifyPayment(reference: string) {
+    return {
+      success: false,
+      pending: true,
+      data: {
+        reference,
+        status: 'pending_settlement'
+      },
+      message: 'Await Stitch webhook settlement confirmation before marking payment complete'
+    };
+  }
+}
+
+export class PeachPaymentsService implements PaymentProvider {
+  private entityId: string;
+  private accessToken: string;
+  private checkoutUrl: string;
+
+  constructor(entityId: string, accessToken: string, checkoutUrl?: string) {
+    this.entityId = entityId;
+    this.accessToken = accessToken;
+    this.checkoutUrl = checkoutUrl || process.env.PEACH_CHECKOUT_URL || `${normalizeFrontendBaseUrl()}/payments/peach`;
+  }
+
+  async initializePayment(request: PaymentInitRequest) {
+    if (!this.entityId || !this.accessToken) {
+      return {
+        success: false,
+        error: 'Peach Payments credentials not configured'
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        checkout_url: buildRedirectUrl(this.checkoutUrl, {
+          provider: 'peach',
+          reference: request.reference,
+          amount: request.amount.toFixed(2),
+          currency: request.currency || 'ZAR'
+        }),
+        checkout_id: request.reference,
+        entity_id: this.entityId
+      },
+      message: 'Peach Payments checkout created'
+    };
+  }
+
+  async verifyPayment(reference: string) {
+    return {
+      success: false,
+      pending: true,
+      data: {
+        reference,
+        status: 'awaiting_capture'
+      },
+      message: 'Await Peach Payments webhook confirmation before marking payment complete'
+    };
+  }
+}
+
+export class ZarpRampService implements PaymentProvider {
+  private baseUrl: string;
+  private assetCode: string;
+  private distributionAccount: string;
+
+  constructor(baseUrl: string, assetCode: string, distributionAccount: string) {
+    this.baseUrl = baseUrl;
+    this.assetCode = assetCode;
+    this.distributionAccount = distributionAccount;
+  }
+
+  async initializePayment(request: PaymentInitRequest) {
+    if (!this.distributionAccount) {
+      return {
+        success: false,
+        error: 'ZARP distribution account not configured'
+      };
+    }
+
+    const interactiveUrl = buildRedirectUrl(`${this.baseUrl.replace(/\/$/, '')}/transactions/deposit/interactive`, {
+      asset_code: this.assetCode || 'ZAR',
+      account: this.distributionAccount,
+      amount: request.amount.toFixed(2),
+      memo: request.reference,
+      memo_type: 'text',
+      lang: 'en'
+    });
+
+    return {
+      success: true,
+      data: {
+        interactive_url: interactiveUrl,
+        asset_code: this.assetCode || 'ZAR',
+        bridge: 'sep-24',
+        anchor: 'zarp'
+      },
+      message: 'ZARP anchor deposit session created'
+    };
+  }
+
+  async verifyPayment(reference: string) {
+    return {
+      success: false,
+      pending: true,
+      data: {
+        reference,
+        status: 'pending_anchor_confirmation'
+      },
+      message: 'Await ZARP anchor confirmation before marking bridge payment complete'
+    };
+  }
+}
+
 // Factory function to get the appropriate payment service
 export const getPaymentService = (provider: string): PaymentProvider => {
   switch (provider.toLowerCase()) {
+    case 'stitch':
+      return new StitchService(
+        process.env.STITCH_API_KEY || '',
+        process.env.STITCH_REDIRECT_URL
+      );
+    case 'peach':
+      return new PeachPaymentsService(
+        process.env.PEACH_ENTITY_ID || '',
+        process.env.PEACH_ACCESS_TOKEN || '',
+        process.env.PEACH_CHECKOUT_URL
+      );
+    case 'zarp':
+      return new ZarpRampService(
+        process.env.ZARP_SEP24_URL || 'https://anchor.zarp.com/sep24',
+        process.env.ZARP_ASSET_CODE || 'ZAR',
+        process.env.ZARP_DISTRIBUTION_ACCOUNT || ''
+      );
     case 'paystack':
       return new PaystackService(process.env.PAYSTACK_SECRET_KEY || '');
     case 'flutterwave':
@@ -380,6 +551,9 @@ export const getPaymentService = (provider: string): PaymentProvider => {
     case 'stripe':
       return new StripeService(process.env.STRIPE_SECRET_KEY || '');
     default:
-      return new PaystackService(process.env.PAYSTACK_SECRET_KEY || '');
+      return new StitchService(
+        process.env.STITCH_API_KEY || '',
+        process.env.STITCH_REDIRECT_URL
+      );
   }
 };

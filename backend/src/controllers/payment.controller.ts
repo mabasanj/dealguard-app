@@ -6,6 +6,28 @@ import { getPaymentService } from '../services/payment.service';
 
 const prisma = new PrismaClient();
 
+const isSuccessfulGatewayStatus = (status?: string) => {
+  return ['successful', 'succeeded', 'completed', 'paid', 'settled'].includes((status || '').toLowerCase());
+};
+
+const resolvePaymentProvider = (paymentMethod: PaymentMethod, requestedProvider?: string) => {
+  if (requestedProvider) {
+    return requestedProvider.toLowerCase();
+  }
+
+  switch (paymentMethod) {
+    case 'CARD':
+      return (process.env.CARD_PAYMENT_PROVIDER || process.env.PAYMENT_PROVIDER || 'peach').toLowerCase();
+    case 'BANK_TRANSFER':
+    case 'INSTANT_EFT':
+      return (process.env.LOCAL_BANK_PROVIDER || 'stitch').toLowerCase();
+    case 'CRYPTO':
+      return (process.env.CRYPTO_RAMP_PROVIDER || 'zarp').toLowerCase();
+    default:
+      return (process.env.PAYMENT_PROVIDER || 'stitch').toLowerCase();
+  }
+};
+
 // Initialize payment with payment provider
 const initiateExternalPayment = async (
   amount: number,
@@ -54,7 +76,7 @@ export const initiatePayment = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Validation failed', details: errors.array() });
     }
 
-    const { escrowId, paymentMethod } = req.body;
+    const { escrowId, paymentMethod, provider } = req.body;
 
     // Find escrow
     const escrow = await prisma.escrow.findUnique({
@@ -117,15 +139,15 @@ export const initiatePayment = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    // For external payments (Paystack, Flutterwave, Stripe)
-    const provider = process.env.PAYMENT_PROVIDER || 'paystack';
+    // For external payments (Stitch, Peach, ZARP, Paystack, Flutterwave, Stripe)
+    const resolvedProvider = resolvePaymentProvider(paymentMethod as PaymentMethod, provider);
     const paymentReference = payment.reference || `PAY-${payment.id}`;
     const paymentInit = await initiateExternalPayment(
       escrow.amount,
       escrow.currency,
       escrow.buyer.email,
       paymentReference,
-      provider
+      resolvedProvider
     );
 
     if (!paymentInit.success) {
@@ -140,11 +162,13 @@ export const initiatePayment = async (req: AuthRequest, res: Response) => {
     // Return payment initialization details
     res.json({
       payment,
-      paymentProvider: provider,
-      paymentUrl: paymentInit.data?.authorization_url || paymentInit.data?.link,
+      paymentProvider: resolvedProvider,
+      paymentUrl: paymentInit.data?.authorization_url || paymentInit.data?.link || paymentInit.data?.checkout_url || paymentInit.data?.interactive_url,
       redirectUrl: paymentInit.data?.redirect_url,
       clientSecret: paymentInit.data?.client_secret,
-      message: `Payment initiated with ${provider}`
+      checkoutId: paymentInit.data?.checkout_id,
+      providerReference: paymentInit.data?.provider_reference,
+      message: `Payment initiated with ${resolvedProvider}`
     });
   } catch (error) {
     console.error('Initiate payment error:', error);
@@ -188,7 +212,7 @@ const processWalletPayment = async (escrow: any, payment: any) => {
 
 export const verifyPaymentCallback = async (req: Request, res: Response) => {
   try {
-    const { reference, status, amount, currency } = req.body;
+    const { reference, status, amount, currency, provider } = req.body;
 
     // Find payment by reference
     const payment = await prisma.payment.findFirst({
@@ -207,10 +231,14 @@ export const verifyPaymentCallback = async (req: Request, res: Response) => {
     }
 
     // Verify with payment provider
-    const provider = process.env.PAYMENT_PROVIDER || 'paystack';
-    const verification = await verifyExternalPayment(payment.reference, provider);
+    const providerName = typeof provider === 'string'
+      ? provider
+      : typeof req.query.provider === 'string'
+        ? req.query.provider
+        : process.env.PAYMENT_PROVIDER || 'stitch';
+    const verification = await verifyExternalPayment(payment.reference, providerName);
 
-    if (verification.success || status === 'successful') {
+    if (verification.success || isSuccessfulGatewayStatus(status)) {
       await prisma.$transaction(async (tx) => {
         // Update payment status
         await tx.payment.update({
@@ -237,7 +265,7 @@ export const verifyPaymentCallback = async (req: Request, res: Response) => {
         });
       });
 
-      res.json({ message: 'Payment verified and processed successfully' });
+      res.json({ message: 'Payment verified and processed successfully', provider: providerName });
     } else {
       // Update payment status to failed
       await prisma.payment.update({
@@ -245,7 +273,7 @@ export const verifyPaymentCallback = async (req: Request, res: Response) => {
         data: { status: 'FAILED' }
       });
 
-      res.json({ message: 'Payment failed' });
+      res.json({ message: 'Payment failed', provider: providerName, amount, currency });
     }
   } catch (error) {
     console.error('Payment verification error:', error);

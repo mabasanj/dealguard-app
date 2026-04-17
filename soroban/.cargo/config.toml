@@ -1,0 +1,6 @@
+[alias]
+build-wasm = "build --target wasm32v1-none --release"
+test-workspace = "test --workspace"
+
+[target.wasm32v1-none]
+rustflags = ["-C", "link-arg=--no-entry"]

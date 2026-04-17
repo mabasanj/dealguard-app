@@ -16,8 +16,11 @@ router.use(authenticate);
 // Initiate payment for escrow
 router.post('/initiate', [
   body('escrowId').notEmpty().isString().withMessage('Valid escrow ID required'),
-  body('paymentMethod').isIn(['CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'WALLET'])
+  body('paymentMethod').isIn(['CARD', 'BANK_TRANSFER', 'INSTANT_EFT', 'CRYPTO', 'DIGITAL_WALLET', 'MOBILE_MONEY', 'WALLET'])
     .withMessage('Invalid payment method')
+  ,
+  body('provider').optional().isIn(['stitch', 'peach', 'zarp', 'paystack', 'flutterwave', 'stripe'])
+    .withMessage('Invalid payment provider')
 ], initiatePayment);
 
 // Get payment history

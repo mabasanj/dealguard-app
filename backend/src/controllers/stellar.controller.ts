@@ -1,7 +1,59 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import * as StellarSdk from 'stellar-sdk';
+import { getSorobanNetworkSummary, ZarpAnchorService } from '../services/bridge.service';
 import { setupEscrow, releaseFunds, submitSignedXdr, validatePublicKey, validateSecretKey } from '../services/stellar.service';
+
+export const getSorobanNetworkController = async (_req: Request, res: Response) => {
+  return res.json({
+    message: 'Soroban network configuration loaded',
+    network: getSorobanNetworkSummary()
+  });
+};
+
+export const createZarpDepositSessionController = async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    }
+
+    const { account, amount, memo, memoType, callbackUrl, emailAddress } = req.body;
+    const service = new ZarpAnchorService();
+
+    return res.json({
+      message: 'ZARP deposit session created',
+      ...(service.createDepositSession({ account, amount, memo, memoType, callbackUrl, emailAddress }))
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'Failed to create ZARP deposit session',
+      details: error?.message || 'Unknown error'
+    });
+  }
+};
+
+export const createZarpWithdrawSessionController = async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    }
+
+    const { account, amount, memo, memoType, callbackUrl, emailAddress } = req.body;
+    const service = new ZarpAnchorService();
+
+    return res.json({
+      message: 'ZARP withdraw session created',
+      ...(service.createWithdrawSession({ account, amount, memo, memoType, callbackUrl, emailAddress }))
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'Failed to create ZARP withdraw session',
+      details: error?.message || 'Unknown error'
+    });
+  }
+};
 
 export const setupEscrowController = async (req: Request, res: Response) => {
   try {

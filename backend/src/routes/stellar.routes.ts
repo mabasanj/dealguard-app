@@ -1,11 +1,46 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
 import { authenticate } from '../middleware/auth.middleware';
-import { releaseFundsController, setupEscrowController, submitSignedXdrController } from '../controllers/stellar.controller';
+import {
+  createZarpDepositSessionController,
+  createZarpWithdrawSessionController,
+  getSorobanNetworkController,
+  releaseFundsController,
+  setupEscrowController,
+  submitSignedXdrController
+} from '../controllers/stellar.controller';
 
 const router = Router();
 
 router.use(authenticate);
+
+router.get('/network', getSorobanNetworkController);
+
+router.post(
+  '/bridge/zarp/deposit',
+  [
+    body('account').notEmpty().isString().withMessage('account is required'),
+    body('amount').optional().isString(),
+    body('memo').optional().isString(),
+    body('memoType').optional().isString(),
+    body('callbackUrl').optional().isString(),
+    body('emailAddress').optional().isEmail().withMessage('emailAddress must be valid')
+  ],
+  createZarpDepositSessionController
+);
+
+router.post(
+  '/bridge/zarp/withdraw',
+  [
+    body('account').notEmpty().isString().withMessage('account is required'),
+    body('amount').optional().isString(),
+    body('memo').optional().isString(),
+    body('memoType').optional().isString(),
+    body('callbackUrl').optional().isString(),
+    body('emailAddress').optional().isEmail().withMessage('emailAddress must be valid')
+  ],
+  createZarpWithdrawSessionController
+);
 
 router.post(
   '/setup-escrow',

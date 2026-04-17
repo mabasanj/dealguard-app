@@ -4,10 +4,13 @@
 
 ### 1. **Payment Service Created**
 - File: `backend/src/services/payment.service.ts`
-- Integrates with **3 payment providers**:
-  - **Paystack** (Recommended for Africa)
-  - **Flutterwave** 
-  - **Stripe** (Global)
+- Integrates with **6 payment/provider rails**:
+   - **Stitch** for South African EFT and bank collection
+   - **Peach Payments** for South African cards
+   - **ZARP Anchor (SEP-24)** for ZAR to Stellar bridge flows
+   - **Paystack**
+   - **Flutterwave**
+   - **Stripe**
 
 ### 2. **Payment Controller Updated**
 - File: `backend/src/controllers/payment.controller.ts`
@@ -17,7 +20,7 @@
 
 ### 3. **Environment Configuration**
 - File: `backend/.env`
-- Added `PAYMENT_PROVIDER` setting (defaults to "paystack")
+- Added `PAYMENT_PROVIDER` setting plus dedicated `CARD_PAYMENT_PROVIDER`, `LOCAL_BANK_PROVIDER`, and `CRYPTO_RAMP_PROVIDER`
 - All API keys documented with placeholder values
 - Ready for real credentials
 
@@ -51,7 +54,30 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_with_your_test_key
 
 ## ⚠️ NEXT STEPS: Get Real API Keys
 
-### **Option 1: Use Paystack** (Recommended for Africa)
+### **Option 1: Use Stitch + Peach + ZARP** (Recommended for South Africa + Stellar)
+
+1. **Configure Stitch for EFT / bank collection**
+   - Create a Stitch merchant account
+   - Add `STITCH_API_KEY`, `STITCH_CLIENT_ID`, `STITCH_CLIENT_SECRET`
+   - Set `LOCAL_BANK_PROVIDER=stitch`
+
+2. **Configure Peach Payments for card checkout**
+   - Create a Peach Payments merchant account
+   - Add `PEACH_ENTITY_ID`, `PEACH_ACCESS_TOKEN`, and `PEACH_CHECKOUT_URL`
+   - Set `CARD_PAYMENT_PROVIDER=peach`
+
+3. **Configure ZARP as the ZAR on/off ramp**
+   - Request ZARP SEP-24 access
+   - Add `ZARP_SEP24_URL`, `ZARP_AUTH_TOKEN`, `ZARP_DISTRIBUTION_ACCOUNT`, `ZARP_ASSET_CODE=ZAR`
+   - Set `CRYPTO_RAMP_PROVIDER=zarp`
+
+4. **Use Stellar Mainnet / Soroban**
+   - Set `STELLAR_NETWORK=PUBLIC`
+   - Set `STELLAR_HORIZON_URL=https://horizon.stellar.org`
+   - Set `STELLAR_RPC_URL=https://mainnet.sorobanrpc.com`
+   - Deploy the contract from the `soroban/` workspace and store its ID in `SOROBAN_ESCROW_CONTRACT_ID`
+
+### **Option 2: Use Paystack**
 
 1. **Create Paystack Account**
    - Go to https://dashboard.paystack.com/signup
@@ -78,7 +104,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_with_your_test_key
 
 ---
 
-### **Option 2: Use Flutterwave** (Alternative)
+### **Option 3: Use Flutterwave** (Alternative)
 
 1. **Create Flutterwave Account**
    - Go to https://dashboard.flutterwave.com/signup
@@ -95,7 +121,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_with_your_test_key
 
 ---
 
-### **Option 3: Use Stripe** (Global)
+### **Option 4: Use Stripe** (Global)
 
 1. **Create Stripe Account**
    - Go to https://dashboard.stripe.com/register
@@ -141,7 +167,11 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_with_your_test_key
 
 ## 📋 Integration Checklist
 
-- [ ] Choose a payment provider (Paystack recommended)
+- [ ] Choose your default rails for cards, EFT, and crypto bridge
+- [ ] Configure Stitch for EFT collections
+- [ ] Configure Peach Payments for card checkout
+- [ ] Configure ZARP SEP-24 credentials for ZAR bridge sessions
+- [ ] Deploy Soroban escrow contract and set `SOROBAN_ESCROW_CONTRACT_ID`
 - [ ] Create account with chosen provider
 - [ ] Get test API keys
 - [ ] Update `.env` file with test keys
@@ -158,10 +188,11 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_with_your_test_key
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Payment Service | ✅ Complete | Supports 3 providers |
+| Payment Service | ✅ Complete | Supports Stitch, Peach, ZARP, Paystack, Flutterwave, Stripe |
 | Controller Integration | ✅ Complete | Uses real APIs |
 | Wallet Payments | ✅ Complete | Works with mock test |
-| External Payments | ✅ Ready | Needs real API keys |
+| External Payments | ✅ Ready | Needs real API keys and webhook setup |
+| Soroban Workspace | ✅ Ready | Add Rust toolchain and deploy contract |
 | Webhook Support | ✅ Ready | Needs configuration |
 | Email Notifications | ⏳ Pending | SMTP not yet setup |
 | Dispute Resolution | ✅ Complete | Fixed validation |
@@ -174,8 +205,10 @@ STRIPE_PUBLISHABLE_KEY=pk_test_replace_with_your_test_key
 With payment provider integration active:
 
 ✅ Users can create escrow transactions
-✅ Users can pay with credit/debit cards
-✅ Users can pay via mobile money (Paystack/Flutterwave)
+✅ Users can pay with Peach-powered local cards
+✅ Users can pay via Stitch EFT / bank collection
+✅ Users can bridge ZAR into Stellar using ZARP SEP-24
+✅ Users can pay via regional rails like Paystack/Flutterwave
 ✅ Funds are held securely by provider
 ✅ Disputes can block fund release
 ✅ Sellers receive payouts after completion

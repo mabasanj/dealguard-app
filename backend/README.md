@@ -7,7 +7,8 @@ A robust Node.js Express backend API for SafeHaven Escrow - a South African fint
 - ✅ **JWT Authentication** - Secure user authentication with JWT tokens
 - ✅ **Escrow Transactions** - Create, manage, and complete escrow transactions
 - ✅ **Wallet Management** - Add funds, withdraw, and transfer between users
-- ✅ **Payment Processing** - Integration with Flutterwave and Paystack
+- ✅ **Payment Processing** - Integration with Stitch, Peach Payments, ZARP, Flutterwave and Paystack
+- ✅ **Soroban Ready** - Repo-scoped Soroban workspace for on-chain escrow lifecycle logic
 - ✅ **Dispute Resolution** - Open, manage, and resolve disputes
 - ✅ **Real-time Chat** - Socket.io integration for real-time messaging
 - ✅ **Notifications** - Email and in-app notifications for all activities
@@ -23,7 +24,8 @@ A robust Node.js Express backend API for SafeHaven Escrow - a South African fint
 - **Database**: PostgreSQL with Prisma ORM
 - **Real-time**: Socket.io
 - **Authentication**: JWT with bcrypt password hashing
-- **Payment**: Flutterwave & Paystack integration
+- **Payment**: Stitch EFT, Peach Payments cards, ZARP SEP-24 bridge, Flutterwave, Paystack
+- **Blockchain**: Stellar Mainnet + Soroban workspace scaffolding
 - **Validation**: express-validator
 - **Security**: Helmet, CORS, Rate limiting
 
@@ -141,6 +143,11 @@ curl http://localhost:5000/health
 - `GET /api/payments/history` - Payment history
 - `POST /api/payments/refund` - Refund payment
 
+### Stellar / Soroban
+- `GET /api/stellar/network` - Current Stellar Mainnet and Soroban config summary
+- `POST /api/stellar/bridge/zarp/deposit` - Build ZARP SEP-24 deposit session
+- `POST /api/stellar/bridge/zarp/withdraw` - Build ZARP SEP-24 withdraw session
+
 ### Disputes
 - `POST /api/disputes` - Create dispute
 - `GET /api/disputes` - Get user's disputes
@@ -169,6 +176,11 @@ curl http://localhost:5000/health
 | `DATABASE_URL` | PostgreSQL connection | `postgresql://user:pass@localhost/db` |
 | `JWT_SECRET` | JWT signing secret | `your-secret-key` |
 | `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:3000` |
+| `STELLAR_RPC_URL` | Soroban RPC endpoint | `https://mainnet.sorobanrpc.com` |
+| `SOROBAN_ESCROW_CONTRACT_ID` | Deployed Soroban escrow contract ID | `CC...` |
+| `STITCH_API_KEY` | Stitch API key | `stitch_live_xxx` |
+| `PEACH_ACCESS_TOKEN` | Peach Payments bearer token | `live_xxx` |
+| `ZARP_SEP24_URL` | ZARP anchor interactive base URL | `https://anchor.zarp.com/sep24` |
 | `FLUTTERWAVE_SECRET_KEY` | Flutterwave API key | `FLWSECK_TEST_xxx` |
 | `PAYSTACK_SECRET_KEY` | Paystack API key | `sk_test_xxx` |
 
@@ -189,11 +201,11 @@ curl http://localhost:5000/health
 - Balance management
 
 ### 3. **Payment Processing**
-- Flutterwave integration for card payments
-- Paystack for mobile money
-- Bank transfer options
-- Wallet payment processing
-- Payment verification and callback handling
+- Stitch for EFT and bank collection flows in South Africa
+- Peach Payments for local card checkout
+- ZARP SEP-24 as the fiat-to-Stellar bridge for ZAR settlement
+- Flutterwave and Paystack remain available for wider regional coverage
+- Wallet payment processing plus provider callback handling
 
 ### 4. **Dispute Resolution**
 - Open disputes for transaction issues
