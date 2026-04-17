@@ -139,4 +139,5 @@ impl DealGuardEscrowContract {
     }
 }
 
+#[cfg(test)]
 mod test;
