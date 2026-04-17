@@ -9,6 +9,7 @@
     "build:all": "npm run build && npm --prefix backend run build",
     "soroban:doctor": "powershell -ExecutionPolicy Bypass -File ./soroban/scripts/doctor.ps1",
     "soroban:build": "cargo build --manifest-path soroban/Cargo.toml --workspace --target wasm32v1-none --release",
+    "soroban:build:ci": "cargo build --manifest-path soroban/Cargo.toml --workspace --target wasm32v1-none --release --jobs 4",
     "soroban:test": "cargo test --manifest-path soroban/Cargo.toml --workspace",
     "start": "next start",
     "start:merged": "concurrently -n frontend,backend -c cyan,green \"npm:start\" \"npm --prefix backend run start\"",
