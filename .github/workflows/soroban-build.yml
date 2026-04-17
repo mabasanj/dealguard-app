@@ -44,6 +44,10 @@ jobs:
             echo "Missing required secret: STELLAR_TESTNET_SECRET_KEY"
             exit 1
           fi
+          if ! echo "$STELLAR_TESTNET_SECRET_KEY" | grep -Eq '^S[A-Z2-7]{55}$'; then
+            echo "Invalid STELLAR_TESTNET_SECRET_KEY format. Expected StrKey secret seed (starts with S, length 56)."
+            exit 1
+          fi
 
       - name: Validate mainnet secret
         if: |
@@ -54,6 +58,10 @@ jobs:
         run: |
           if [ -z "$STELLAR_MAINNET_SECRET_KEY" ]; then
             echo "Missing required secret: STELLAR_MAINNET_SECRET_KEY"
+            exit 1
+          fi
+          if ! echo "$STELLAR_MAINNET_SECRET_KEY" | grep -Eq '^S[A-Z2-7]{55}$'; then
+            echo "Invalid STELLAR_MAINNET_SECRET_KEY format. Expected StrKey secret seed (starts with S, length 56)."
             exit 1
           fi
 
