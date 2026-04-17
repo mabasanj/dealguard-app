@@ -31,9 +31,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (from rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: stable
           targets: wasm32v1-none
 
       - name: Cache Cargo registry
@@ -57,9 +58,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (from rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: stable
           targets: wasm32v1-none
 
       - name: Cache Cargo registry
@@ -69,8 +71,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             soroban/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('soroban/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('soroban/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-wasm-
             ${{ runner.os }}-cargo-
 
       - name: Build release WASM
@@ -105,8 +108,10 @@ jobs:
 
       - name: Install Stellar CLI
         run: |
-          curl -L https://github.com/stellar/stellar-cli/releases/latest/download/stellar-cli-x86_64-unknown-linux-gnu.tar.gz \
-            | tar -xz -C /usr/local/bin
+          STELLAR_CLI_VERSION="26.0.0"
+          curl -Lo stellar.tar.gz \
+            "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf stellar.tar.gz -C /usr/local/bin stellar
           stellar --version
 
       - name: Download WASM artifact
@@ -160,8 +165,10 @@ jobs:
 
       - name: Install Stellar CLI
         run: |
-          curl -L https://github.com/stellar/stellar-cli/releases/latest/download/stellar-cli-x86_64-unknown-linux-gnu.tar.gz \
-            | tar -xz -C /usr/local/bin
+          STELLAR_CLI_VERSION="26.0.0"
+          curl -Lo stellar.tar.gz \
+            "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf stellar.tar.gz -C /usr/local/bin stellar
           stellar --version
 
       - name: Download WASM artifact
