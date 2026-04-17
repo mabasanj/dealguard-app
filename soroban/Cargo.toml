@@ -16,6 +16,3 @@ debug-assertions = false
 panic = "abort"
 codegen-units = 1
 lto = true
-
-[profile.release.package.dealguard-escrow-contract]
-wasm-opt = false
