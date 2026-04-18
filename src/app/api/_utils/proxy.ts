@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.BACKEND_API_URL ||
+  (process.env.RENDER ? 'https://dealguard-backend.onrender.com/api' : 'http://localhost:5001/api');
 
 function sanitizeRequestHeaders(request: NextRequest): Headers {
   const headers = new Headers();

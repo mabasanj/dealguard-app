@@ -35,7 +35,9 @@ export interface PaymentVerifyResponse {
   transactionId: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NEXT_PUBLIC_APP_URL ? 'https://dealguard-backend.onrender.com/api' : 'http://localhost:5000/api');
 
 /**
  * Initiate a payment

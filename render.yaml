@@ -17,7 +17,7 @@ services:
           name: dealguard-db
           property: connectionString
       - key: FRONTEND_URL
-        sync: false
+        value: https://dealguard-frontend.onrender.com
       - key: JWT_SECRET
         generateValue: true
       - key: STRIPE_SECRET_KEY
@@ -53,15 +53,15 @@ services:
       - key: NODE_ENV
         value: production
       - key: NEXTAUTH_URL
-        sync: false
+        value: https://dealguard-frontend.onrender.com
       - key: NEXTAUTH_SECRET
         sync: false
       - key: NEXT_PUBLIC_APP_URL
-        sync: false
+        value: https://dealguard-frontend.onrender.com
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: https://dealguard-backend.onrender.com/api
       - key: NEXT_PUBLIC_SOCKET_URL
-        sync: false
+        value: https://dealguard-backend.onrender.com
 
 databases:
   - name: dealguard-db
