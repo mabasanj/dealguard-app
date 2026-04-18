@@ -3,7 +3,7 @@ services:
     name: dealguard-backend
     runtime: node
     rootDir: backend
-    plan: starter
+    plan: free
     buildCommand: npm ci ; npx prisma generate ; npm run build
     startCommand: npm run start
     healthCheckPath: /health
@@ -45,7 +45,7 @@ services:
     name: dealguard-frontend
     runtime: node
     rootDir: .
-    plan: starter
+    plan: free
     buildCommand: npm ci ; npm run build
     startCommand: npm run start
     healthCheckPath: /
