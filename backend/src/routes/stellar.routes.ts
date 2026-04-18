@@ -12,6 +12,10 @@ import {
   sep24DepositController,
   sep24WithdrawController,
   sep24TransactionStatusController,
+  zarpInfoController,
+  zarpAccountBalancesController,
+  zarpAddTrustlineController,
+  zarpSendPaymentController,
 } from '../controllers/stellar.controller';
 
 const router = Router();
@@ -118,5 +122,38 @@ router.post(
 );
 
 router.get('/sep24/transaction/:id', sep24TransactionStatusController);
+
+// ─── ZARP Routes ──────────────────────────────────────────────────────────────
+
+// SEP-1: discover anchor endpoints and TOML info
+router.get('/zarp/info', zarpInfoController);
+
+// Account balances (XLM + ZARP + any other asset)
+router.get('/zarp/balances/:publicKey', zarpAccountBalancesController);
+
+// Add ZARP trustline
+router.post(
+  '/zarp/trustline',
+  [
+    body('signingSecretKey').optional().isString(),
+    body('assetCode').optional().isString(),
+    body('assetIssuer').optional().isString(),
+  ],
+  zarpAddTrustlineController
+);
+
+// Send ZARP payment
+router.post(
+  '/zarp/send',
+  [
+    body('sourceSecretKey').optional().isString(),
+    body('destination').notEmpty().isString().withMessage('destination public key is required'),
+    body('amount').notEmpty().isString().withMessage('amount is required'),
+    body('assetCode').optional().isString(),
+    body('assetIssuer').optional().isString(),
+    body('memo').optional().isString(),
+  ],
+  zarpSendPaymentController
+);
 
 export default router;

@@ -297,6 +297,12 @@ export default function WalletPage() {
               Withdraw ZARP
             </button>
           </div>
+          <button
+            onClick={() => router.push('/zarp')}
+            className="text-xs text-primary underline mt-2 w-full text-center block"
+          >
+            Full ZARP management →
+          </button>
         </div>
 
         {/* Transactions */}

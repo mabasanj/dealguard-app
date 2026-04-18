@@ -40,6 +40,14 @@ services:
         sync: false
       - key: SOROBAN_ESCROW_CONTRACT_ID
         sync: false
+      - key: ZARP_HOME_DOMAIN
+        value: zarp.com
+      - key: ZARP_ASSET_CODE
+        value: ZAR
+      - key: ZARP_ASSET_ISSUER
+        sync: false
+      - key: ZARP_SEP24_URL
+        sync: false
 
   - type: web
     name: dealguard-frontend

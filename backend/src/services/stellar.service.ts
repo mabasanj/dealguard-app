@@ -154,3 +154,122 @@ export async function submitSignedXdr(xdr: string) {
     throw new Error('Failed to submit transaction: unknown error');
   }
 }
+
+// ─── ZARP Asset Helpers ───────────────────────────────────────────────────────
+
+export function getZarpAsset(): StellarSdk.Asset {
+  const code = process.env.ZARP_ASSET_CODE || 'ZAR';
+  const issuer = process.env.ZARP_ASSET_ISSUER;
+  if (!issuer) {
+    throw new Error(
+      'ZARP_ASSET_ISSUER env var is not set. ' +
+      'Set it to the ZARP asset issuer public key.'
+    );
+  }
+  return new StellarSdk.Asset(code, issuer);
+}
+
+export interface AccountBalance {
+  assetType: string;
+  assetCode?: string;
+  assetIssuer?: string;
+  balance: string;
+  limit?: string;
+}
+
+/**
+ * Fetch all balances for a Stellar account.
+ * Returns XLM native + any issued asset balances.
+ */
+export async function getAccountBalances(publicKey: string): Promise<AccountBalance[]> {
+  validatePublicKey(publicKey);
+
+  const account = await server.loadAccount(publicKey);
+
+  return account.balances.map((b) => {
+    if (b.asset_type === 'native') {
+      return { assetType: 'native', assetCode: 'XLM', balance: b.balance };
+    }
+    const issued = b as StellarSdk.Horizon.BalanceLine<'credit_alphanum4' | 'credit_alphanum12'>;
+    return {
+      assetType: issued.asset_type,
+      assetCode: issued.asset_code,
+      assetIssuer: issued.asset_issuer,
+      balance: issued.balance,
+      limit: issued.limit,
+    };
+  });
+}
+
+/**
+ * Add a trustline for the ZARP asset (or any issued asset).
+ * The signing keypair must be the account that needs the trustline.
+ */
+export async function addTrustline(
+  signingSecretKey: string,
+  assetCode?: string,
+  assetIssuer?: string
+): Promise<any> {
+  validateSecretKey(signingSecretKey);
+
+  const keypair = StellarSdk.Keypair.fromSecret(signingSecretKey);
+  const asset = (assetCode && assetIssuer)
+    ? new StellarSdk.Asset(assetCode, assetIssuer)
+    : getZarpAsset();
+
+  const account = await server.loadAccount(keypair.publicKey());
+  const tx = new StellarSdk.TransactionBuilder(account, {
+    fee: StellarSdk.BASE_FEE,
+    networkPassphrase: NETWORK_PASSPHRASE,
+  })
+    .addOperation(StellarSdk.Operation.changeTrust({ asset }))
+    .setTimeout(300)
+    .build();
+
+  tx.sign(keypair);
+  return server.submitTransaction(tx);
+}
+
+/**
+ * Send a ZARP (or any asset) payment from one account to another.
+ */
+export async function sendPayment(
+  sourceSecretKey: string,
+  destinationPublicKey: string,
+  amount: string,
+  assetCode?: string,
+  assetIssuer?: string,
+  memo?: string
+): Promise<any> {
+  validateSecretKey(sourceSecretKey);
+  validatePublicKey(destinationPublicKey);
+
+  if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+    throw new Error('Amount must be a positive number');
+  }
+
+  const keypair = StellarSdk.Keypair.fromSecret(sourceSecretKey);
+  const asset = (assetCode && assetIssuer)
+    ? new StellarSdk.Asset(assetCode, assetIssuer)
+    : getZarpAsset();
+
+  const account = await server.loadAccount(keypair.publicKey());
+  const builder = new StellarSdk.TransactionBuilder(account, {
+    fee: StellarSdk.BASE_FEE,
+    networkPassphrase: NETWORK_PASSPHRASE,
+  }).addOperation(
+    StellarSdk.Operation.payment({
+      destination: destinationPublicKey,
+      asset,
+      amount,
+    })
+  );
+
+  if (memo) {
+    builder.addMemo(StellarSdk.Memo.text(memo));
+  }
+
+  const tx = builder.setTimeout(300).build();
+  tx.sign(keypair);
+  return server.submitTransaction(tx);
+}

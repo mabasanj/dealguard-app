@@ -167,3 +167,58 @@ export const sep24Api = {
     return apiClient.get(`/stellar/sep24/transaction/${transactionId}?jwt=${encodeURIComponent(jwt)}`);
   },
 };
+
+// ─── ZARP API ─────────────────────────────────────────────────────────────────
+
+export interface ZarpBalance {
+  assetType: string;
+  assetCode?: string;
+  assetIssuer?: string;
+  balance: string;
+  limit?: string;
+}
+
+export interface ZarpAnchorInfo {
+  transferServer: string;
+  authServer: string;
+  assetCode: string;
+  assetIssuer?: string;
+  toml: Record<string, unknown>;
+}
+
+export interface ZarpSendPayload {
+  sourceSecretKey?: string;
+  destination: string;
+  amount: string;
+  assetCode?: string;
+  assetIssuer?: string;
+  memo?: string;
+}
+
+export interface ZarpTrustlinePayload {
+  signingSecretKey?: string;
+  assetCode?: string;
+  assetIssuer?: string;
+}
+
+export const zarpApi = {
+  /** Fetch ZARP anchor info via SEP-1 stellar.toml discovery. */
+  info: async (): Promise<ZarpAnchorInfo> => {
+    return apiClient.get('/stellar/zarp/info');
+  },
+
+  /** Get all Stellar balances (XLM + ZARP + others) for a public key. */
+  balances: async (publicKey: string): Promise<{ balances: ZarpBalance[] }> => {
+    return apiClient.get(`/stellar/zarp/balances/${encodeURIComponent(publicKey)}`);
+  },
+
+  /** Establish a ZARP trustline on the signing account. */
+  addTrustline: async (payload: ZarpTrustlinePayload): Promise<any> => {
+    return apiClient.post('/stellar/zarp/trustline', payload);
+  },
+
+  /** Send a ZARP payment to another Stellar account. */
+  send: async (payload: ZarpSendPayload): Promise<any> => {
+    return apiClient.post('/stellar/zarp/send', payload);
+  },
+};

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as StellarSdk from 'stellar-sdk';
+import * as toml from '@iarna/toml';
 
 const STELLAR_MAINNET_PASSPHRASE = 'Public Global Stellar Network ; September 2015';
 const STELLAR_TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
@@ -235,4 +236,81 @@ export async function sep24TransactionStatus(
   });
 
   return res.data.transaction;
+}
+
+// ─── SEP-1: stellar.toml Discovery ───────────────────────────────────────────
+
+export interface StellarTomlInfo {
+  ACCOUNTS?: string[];
+  VERSION?: string;
+  NETWORK_PASSPHRASE?: string;
+  HORIZON_URL?: string;
+  FEDERATION_SERVER?: string;
+  AUTH_SERVER?: string;
+  TRANSFER_SERVER?: string;
+  TRANSFER_SERVER_SEP0024?: string;
+  KYC_SERVER?: string;
+  CURRENCIES?: Array<{
+    code: string;
+    issuer?: string;
+    name?: string;
+    desc?: string;
+    anchor_asset_type?: string;
+    anchor_asset?: string;
+    status?: string;
+  }>;
+  [key: string]: unknown;
+}
+
+/**
+ * Fetch and parse an anchor's stellar.toml (SEP-1).
+ * Resolves the well-known URL from the anchor's home domain.
+ */
+export async function fetchStellarToml(homeDomain: string): Promise<StellarTomlInfo> {
+  const url = `https://${homeDomain.replace(/^https?:\/\//, '')}/.well-known/stellar.toml`;
+  const res = await axios.get<string>(url, {
+    responseType: 'text',
+    headers: { Accept: 'text/plain' },
+  });
+
+  const parsed = toml.parse(res.data) as unknown as StellarTomlInfo;
+  return parsed;
+}
+
+/**
+ * Resolve the ZARP anchor's transfer server and auth server
+ * by fetching their stellar.toml.
+ * Falls back to env vars if the domain is not set.
+ */
+export async function resolveZarpAnchorEndpoints(): Promise<{
+  transferServer: string;
+  authServer: string;
+  assetCode: string;
+  assetIssuer: string | undefined;
+}> {
+  const assetCode = process.env.ZARP_ASSET_CODE || 'ZAR';
+  const assetIssuer = process.env.ZARP_ASSET_ISSUER;
+  const homeDomain = process.env.ZARP_HOME_DOMAIN || 'zarp.com';
+
+  // Try live discovery first; fall back to env var overrides
+  let transferServer = process.env.ZARP_SEP24_URL || '';
+  let authServer = '';
+
+  try {
+    const tomlInfo = await fetchStellarToml(homeDomain);
+    transferServer = tomlInfo.TRANSFER_SERVER_SEP0024 || tomlInfo.TRANSFER_SERVER || transferServer;
+    authServer = tomlInfo.AUTH_SERVER || authServer;
+
+    // Resolve issuer from CURRENCIES if not explicitly set
+    if (!assetIssuer && tomlInfo.CURRENCIES) {
+      const match = tomlInfo.CURRENCIES.find((c) => c.code === assetCode);
+      if (match?.issuer) {
+        process.env.ZARP_ASSET_ISSUER = match.issuer; // cache for this process
+      }
+    }
+  } catch {
+    // Tolerate toml fetch failures — env vars are the fallback
+  }
+
+  return { transferServer, authServer, assetCode, assetIssuer };
 }
