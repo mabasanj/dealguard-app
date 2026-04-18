@@ -21,14 +21,14 @@ export default function Home() {
           <div className="relative max-w-4xl mx-auto text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-white/10 border border-white/10 text-white/70 text-xs font-medium px-4 py-1.5 rounded-full mb-8">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse inline-block"></span>
-              Trusted escrow for South African traders
+              Trusted escrow rails for South African commerce
             </div>
             <h1 className="text-6xl md:text-[84px] font-bold leading-[1.01] tracking-tight mb-7">
-              Secure Your<br />
-              <span className="text-primary">Deals</span> Freely
+              Secure Every<br />
+              <span className="text-primary">Deal</span> You Make
             </h1>
             <p className="text-lg md:text-xl text-white/60 max-w-xl mx-auto mb-10 leading-relaxed">
-              DealGuard holds funds in escrow while your trade is in progress — buyer and seller protected on every deal.
+              DealGuard places buyer funds in controlled escrow and releases only when agreed delivery terms are satisfied.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/auth/register" className="btn bg-primary text-white hover:bg-primary-dark px-8 py-3.5 text-base rounded-full font-semibold transition">
@@ -38,7 +38,7 @@ export default function Home() {
                 Log in
               </Link>
             </div>
-            <p className="text-white/30 text-sm mt-5">No credit card required &middot; 3% fee only on release</p>
+            <p className="text-white/30 text-sm mt-5">No monthly subscription &middot; 3% fee only when a deal is completed</p>
           </div>
 
           {/* Hero visual mockup */}
@@ -93,7 +93,7 @@ export default function Home() {
             {[
               { num: 'ZAR 0', label: 'To create an escrow' },
               { num: '3%', label: 'Fee only on successful release' },
-              { num: '100%', label: 'Funds protected in escrow' },
+              { num: '100%', label: 'Escrow-controlled payment flow' },
               { num: '24/7', label: 'Deal monitoring and support' },
             ].map((s, i) => (
               <div key={i}>
@@ -115,7 +115,7 @@ export default function Home() {
                 Lock funds before<br />any goods move
               </h2>
               <p className="text-gray-500 text-lg leading-relaxed mb-8">
-                Before a buyer sends payment outside your control, create a DealGuard escrow. Funds are locked until delivery is confirmed — protecting both sides of every trade.
+                Replace risky direct transfers with a controlled escrow flow. Funds remain protected until delivery is confirmed, reducing fraud for both buyer and seller.
               </p>
               <Link href="/auth/register" className="btn bg-primary text-white hover:bg-primary-dark px-7 py-3 text-sm rounded-full font-semibold transition inline-flex">
                 Create your first escrow
@@ -171,7 +171,7 @@ export default function Home() {
                 Release funds only<br />on proof of delivery
               </h2>
               <p className="text-gray-500 text-lg leading-relaxed mb-8">
-                No more disputes. DealGuard holds the money until the buyer confirms receipt. Built for WhatsApp, TikTok, and Facebook Marketplace trades.
+                Keep every transaction auditable from payment lock to final release. Built for WhatsApp, TikTok, Facebook Marketplace, and private B2B trade flows.
               </p>
               <Link href="/auth/register" className="btn bg-primary text-white hover:bg-primary-dark px-7 py-3 text-sm rounded-full font-semibold transition inline-flex">
                 Start protecting deals
@@ -270,7 +270,7 @@ export default function Home() {
             Protect your next deal today
           </h2>
           <p className="relative text-white/80 text-xl mb-10 max-w-xl mx-auto">
-            Join traders using DealGuard to eliminate fraud and trade with confidence across South Africa.
+            Join buyers and sellers using DealGuard to reduce fraud exposure and close higher-trust deals across South Africa.
           </p>
           <Link
             href="/auth/register"
@@ -296,7 +296,7 @@ export default function Home() {
                 <span className="font-bold text-base">Deal<span className="text-primary">Guard</span></span>
               </div>
               <p className="text-white/40 text-sm max-w-xs leading-relaxed">
-                Escrow infrastructure for social commerce and informal trade across South Africa.
+                Escrow infrastructure for social commerce, resale, and private B2B trade across South Africa.
               </p>
             </div>
             <div>
@@ -310,17 +310,17 @@ export default function Home() {
             <div>
               <h4 className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-4">Company</h4>
               <ul className="space-y-2.5 text-sm text-white/60">
-                <li><Link href="#" className="hover:text-white transition">About</Link></li>
-                <li><Link href="#" className="hover:text-white transition">Blog</Link></li>
-                <li><Link href="#" className="hover:text-white transition">Careers</Link></li>
+                <li><Link href="/" className="hover:text-white transition">About</Link></li>
+                <li><Link href="/pricing" className="hover:text-white transition">Pricing</Link></li>
+                <li><Link href="/auth/register" className="hover:text-white transition">Get Started</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="text-xs font-semibold text-white/30 uppercase tracking-widest mb-4">Legal</h4>
               <ul className="space-y-2.5 text-sm text-white/60">
-                <li><Link href="#" className="hover:text-white transition">Privacy</Link></li>
-                <li><Link href="#" className="hover:text-white transition">Terms</Link></li>
-                <li><Link href="#" className="hover:text-white transition">Security</Link></li>
+                <li><Link href="/auth/register" className="hover:text-white transition">Privacy</Link></li>
+                <li><Link href="/auth/register" className="hover:text-white transition">Terms</Link></li>
+                <li><Link href="/dashboard" className="hover:text-white transition">Security</Link></li>
               </ul>
             </div>
           </div>
