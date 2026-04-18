@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
-const TRANSACTION_FEE_RATE = 0.03;
+const TRANSACTION_FEE_RATE = 0.07;
 
 export const createEscrow = async (req: AuthRequest, res: Response) => {
   try {
@@ -51,7 +51,7 @@ export const createEscrow = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Unauthorized to create this escrow' });
     }
 
-    // Platform fee is fixed at 3% of transaction amount only (other charges are excluded).
+    // Platform fee is fixed at 7% of transaction amount only (other charges are excluded).
     const numericAmount = Number(amount);
     const platformFee = Number((numericAmount * TRANSACTION_FEE_RATE).toFixed(2));
     const sellerReceives = Number((numericAmount - platformFee).toFixed(2));

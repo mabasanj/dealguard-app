@@ -38,7 +38,7 @@ export default function Home() {
                 Log in
               </Link>
             </div>
-            <p className="text-white/30 text-sm mt-5">No monthly subscription &middot; 3% fee only when a deal is completed</p>
+            <p className="text-white/30 text-sm mt-5">No monthly subscription &middot; 7% fee only when a deal is completed</p>
           </div>
 
           {/* Hero visual mockup */}
@@ -92,7 +92,7 @@ export default function Home() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
               { num: 'ZAR 0', label: 'To create an escrow' },
-              { num: '3%', label: 'Fee only on successful release' },
+              { num: '7%', label: 'Fee only on successful release' },
               { num: '100%', label: 'Escrow-controlled payment flow' },
               { num: '24/7', label: 'Deal monitoring and support' },
             ].map((s, i) => (
