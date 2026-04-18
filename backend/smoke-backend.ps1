@@ -1,8 +1,14 @@
 param(
-  [string]$BaseUrl = "http://localhost:5001/api"
+  [string]$BaseUrl
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $BaseUrl) {
+  $backendPort = if ($env:BACKEND_PORT) { $env:BACKEND_PORT } elseif ($env:PORT) { $env:PORT } else { "5000" }
+  $BaseUrl = "http://localhost:$backendPort/api"
+}
+$HealthUrl = ($BaseUrl -replace '/api/?$', '') + "/health"
 
 function Step($text) {
   Write-Host "`n=== $text ===" -ForegroundColor Cyan
@@ -33,7 +39,7 @@ function GetJson($url, $token = $null) {
 }
 
 Step "Backend health"
-$health = Invoke-RestMethod -Method Get -Uri "http://localhost:5001/health"
+$health = Invoke-RestMethod -Method Get -Uri $HealthUrl
 $health | ConvertTo-Json -Depth 4 | Write-Host
 
 $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
