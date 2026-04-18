@@ -1,7 +1,14 @@
 import { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import * as StellarSdk from 'stellar-sdk';
-import { getSorobanNetworkSummary, ZarpAnchorService } from '../services/bridge.service';
+import {
+  getSorobanNetworkSummary,
+  ZarpAnchorService,
+  sep10Auth,
+  sep24Deposit,
+  sep24Withdraw,
+  sep24TransactionStatus,
+} from '../services/bridge.service';
 import { setupEscrow, releaseFunds, submitSignedXdr, validatePublicKey, validateSecretKey } from '../services/stellar.service';
 
 export const getSorobanNetworkController = async (_req: Request, res: Response) => {
@@ -171,6 +178,143 @@ export const submitSignedXdrController = async (req: Request, res: Response) => 
   } catch (error: any) {
     return res.status(500).json({
       error: 'Failed to submit signed transaction',
+      details: error?.response?.data || error?.message || 'Unknown error',
+    });
+  }
+};
+
+// ─── SEP-24 Controllers ───────────────────────────────────────────────────────
+
+const resolveAnchorUrl = (): string =>
+  process.env.ZARP_SEP24_URL || 'https://anchor.zarp.com/sep24';
+
+/**
+ * POST /stellar/sep24/auth
+ * Performs SEP-10 Web Authentication and returns a JWT for subsequent SEP-24 calls.
+ * Body: { account: string, signingSecretKey?: string }
+ */
+export const sep24AuthController = async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    }
+
+    const { account, signingSecretKey } = req.body;
+
+    const effectiveSecret = signingSecretKey || process.env.STELLAR_APP_SECRET_KEY;
+    if (!effectiveSecret) {
+      return res.status(400).json({
+        error: 'signingSecretKey is required when STELLAR_APP_SECRET_KEY is not configured',
+      });
+    }
+
+    const anchorUrl = resolveAnchorUrl();
+    const token = await sep10Auth(anchorUrl, account, effectiveSecret);
+
+    return res.json({ message: 'SEP-10 authentication successful', token, anchor: anchorUrl });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'SEP-10 authentication failed',
+      details: error?.response?.data || error?.message || 'Unknown error',
+    });
+  }
+};
+
+/**
+ * POST /stellar/sep24/deposit
+ * Initiates a SEP-24 interactive deposit session.
+ * Body: { jwt, account, amount?, assetCode?, memo?, memoType?, emailAddress? }
+ */
+export const sep24DepositController = async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    }
+
+    const { jwt, account, amount, assetCode, memo, memoType, emailAddress } = req.body;
+    const anchorUrl = resolveAnchorUrl();
+
+    const session = await sep24Deposit({
+      anchorUrl,
+      jwt,
+      assetCode: assetCode || process.env.ZARP_ASSET_CODE || 'ZAR',
+      account,
+      amount,
+      memo,
+      memoType,
+      emailAddress,
+    });
+
+    return res.json({ message: 'SEP-24 deposit session created', ...session });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'Failed to create SEP-24 deposit session',
+      details: error?.response?.data || error?.message || 'Unknown error',
+    });
+  }
+};
+
+/**
+ * POST /stellar/sep24/withdraw
+ * Initiates a SEP-24 interactive withdrawal session.
+ * Body: { jwt, account, amount?, assetCode?, memo?, memoType?, emailAddress? }
+ */
+export const sep24WithdrawController = async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    }
+
+    const { jwt, account, amount, assetCode, memo, memoType, emailAddress } = req.body;
+    const anchorUrl = resolveAnchorUrl();
+
+    const session = await sep24Withdraw({
+      anchorUrl,
+      jwt,
+      assetCode: assetCode || process.env.ZARP_ASSET_CODE || 'ZAR',
+      account,
+      amount,
+      memo,
+      memoType,
+      emailAddress,
+    });
+
+    return res.json({ message: 'SEP-24 withdrawal session created', ...session });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'Failed to create SEP-24 withdrawal session',
+      details: error?.response?.data || error?.message || 'Unknown error',
+    });
+  }
+};
+
+/**
+ * GET /stellar/sep24/transaction/:id
+ * Polls the status of a SEP-24 transaction.
+ * Query: jwt (Bearer token)
+ */
+export const sep24TransactionStatusController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const jwt = (req.headers.authorization?.replace(/^Bearer\s+/i, '') || req.query.jwt) as string;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Transaction ID is required' });
+    }
+    if (!jwt) {
+      return res.status(400).json({ error: 'JWT is required (Authorization header or jwt query param)' });
+    }
+
+    const anchorUrl = resolveAnchorUrl();
+    const transaction = await sep24TransactionStatus(anchorUrl, jwt, id);
+
+    return res.json({ message: 'SEP-24 transaction status fetched', transaction });
+  } catch (error: any) {
+    return res.status(500).json({
+      error: 'Failed to fetch SEP-24 transaction status',
       details: error?.response?.data || error?.message || 'Unknown error',
     });
   }

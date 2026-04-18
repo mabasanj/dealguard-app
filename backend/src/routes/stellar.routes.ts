@@ -7,7 +7,11 @@ import {
   getSorobanNetworkController,
   releaseFundsController,
   setupEscrowController,
-  submitSignedXdrController
+  submitSignedXdrController,
+  sep24AuthController,
+  sep24DepositController,
+  sep24WithdrawController,
+  sep24TransactionStatusController,
 } from '../controllers/stellar.controller';
 
 const router = Router();
@@ -73,5 +77,46 @@ router.post(
   ],
   submitSignedXdrController
 );
+
+// ─── SEP-24 Routes ────────────────────────────────────────────────────────────
+
+router.post(
+  '/sep24/auth',
+  [
+    body('account').notEmpty().isString().withMessage('account (Stellar public key) is required'),
+    body('signingSecretKey').optional().isString(),
+  ],
+  sep24AuthController
+);
+
+router.post(
+  '/sep24/deposit',
+  [
+    body('jwt').notEmpty().isString().withMessage('jwt is required'),
+    body('account').notEmpty().isString().withMessage('account is required'),
+    body('amount').optional().isString(),
+    body('assetCode').optional().isString(),
+    body('memo').optional().isString(),
+    body('memoType').optional().isString(),
+    body('emailAddress').optional().isEmail(),
+  ],
+  sep24DepositController
+);
+
+router.post(
+  '/sep24/withdraw',
+  [
+    body('jwt').notEmpty().isString().withMessage('jwt is required'),
+    body('account').notEmpty().isString().withMessage('account is required'),
+    body('amount').optional().isString(),
+    body('assetCode').optional().isString(),
+    body('memo').optional().isString(),
+    body('memoType').optional().isString(),
+    body('emailAddress').optional().isEmail(),
+  ],
+  sep24WithdrawController
+);
+
+router.get('/sep24/transaction/:id', sep24TransactionStatusController);
 
 export default router;

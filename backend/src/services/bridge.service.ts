@@ -1,4 +1,8 @@
+import axios from 'axios';
+import * as StellarSdk from 'stellar-sdk';
+
 const STELLAR_MAINNET_PASSPHRASE = 'Public Global Stellar Network ; September 2015';
+const STELLAR_TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015';
 
 export interface SorobanNetworkSummary {
   network: 'mainnet';
@@ -94,4 +98,141 @@ export class ZarpAnchorService {
       }
     };
   }
+}
+
+// ─── SEP-24 Interactive Deposit / Withdrawal ──────────────────────────────────
+
+function getNetworkPassphrase(): string {
+  return process.env.STELLAR_NETWORK === 'PUBLIC'
+    ? STELLAR_MAINNET_PASSPHRASE
+    : STELLAR_TESTNET_PASSPHRASE;
+}
+
+/**
+ * SEP-10 Web Authentication — obtain a JWT from an anchor.
+ * Steps:
+ *  1. GET {anchorUrl}/auth?account={pubKey}   → { transaction: <base64 XDR> }
+ *  2. Sign the challenge transaction with the provided keypair.
+ *  3. POST {anchorUrl}/auth { transaction: <signed base64 XDR> } → { token }
+ */
+export async function sep10Auth(
+  anchorUrl: string,
+  accountPublicKey: string,
+  signingSecretKey: string
+): Promise<string> {
+  const authUrl = `${anchorUrl.replace(/\/$/, '')}/auth`;
+
+  const challengeRes = await axios.get<{ transaction: string }>(authUrl, {
+    params: { account: accountPublicKey },
+  });
+
+  const networkPassphrase = getNetworkPassphrase();
+  const challengeTx = new StellarSdk.Transaction(
+    challengeRes.data.transaction,
+    networkPassphrase
+  );
+
+  const keypair = StellarSdk.Keypair.fromSecret(signingSecretKey);
+  challengeTx.sign(keypair);
+  const signedXdr = challengeTx.toEnvelope().toXDR('base64');
+
+  const tokenRes = await axios.post<{ token: string }>(authUrl, {
+    transaction: signedXdr,
+  });
+
+  return tokenRes.data.token;
+}
+
+export interface Sep24SessionParams {
+  anchorUrl: string;
+  jwt: string;
+  assetCode: string;
+  account: string;
+  amount?: string;
+  memo?: string;
+  memoType?: string;
+  emailAddress?: string;
+}
+
+export interface Sep24SessionResult {
+  url: string;
+  id: string;
+}
+
+/**
+ * SEP-24 Interactive Deposit.
+ * Returns the anchor's interactive URL and a transaction ID to poll.
+ */
+export async function sep24Deposit(
+  params: Sep24SessionParams
+): Promise<Sep24SessionResult> {
+  const { anchorUrl, jwt, assetCode, account, amount, memo, memoType, emailAddress } = params;
+  const url = `${anchorUrl.replace(/\/$/, '')}/transactions/deposit/interactive`;
+
+  const body: Record<string, string> = { asset_code: assetCode, account };
+  if (amount) body.amount = amount;
+  if (memo) body.memo = memo;
+  if (memoType) body.memo_type = memoType;
+  if (emailAddress) body.email_address = emailAddress;
+
+  const res = await axios.post<{ url: string; id: string; type: string }>(url, body, {
+    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+  });
+
+  return { url: res.data.url, id: res.data.id };
+}
+
+/**
+ * SEP-24 Interactive Withdrawal.
+ * Returns the anchor's interactive URL and a transaction ID to poll.
+ */
+export async function sep24Withdraw(
+  params: Sep24SessionParams
+): Promise<Sep24SessionResult> {
+  const { anchorUrl, jwt, assetCode, account, amount, memo, memoType, emailAddress } = params;
+  const url = `${anchorUrl.replace(/\/$/, '')}/transactions/withdraw/interactive`;
+
+  const body: Record<string, string> = { asset_code: assetCode, account };
+  if (amount) body.amount = amount;
+  if (memo) body.memo = memo;
+  if (memoType) body.memo_type = memoType;
+  if (emailAddress) body.email_address = emailAddress;
+
+  const res = await axios.post<{ url: string; id: string; type: string }>(url, body, {
+    headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+  });
+
+  return { url: res.data.url, id: res.data.id };
+}
+
+export interface Sep24TransactionRecord {
+  id: string;
+  status: string;
+  kind: 'deposit' | 'withdrawal';
+  amount_in?: string;
+  amount_out?: string;
+  amount_fee?: string;
+  more_info_url?: string;
+  started_at?: string;
+  completed_at?: string;
+  stellar_transaction_id?: string;
+  external_transaction_id?: string;
+}
+
+/**
+ * SEP-24 Transaction Status — poll a single transaction's state.
+ */
+export async function sep24TransactionStatus(
+  anchorUrl: string,
+  jwt: string,
+  transactionId: string
+): Promise<Sep24TransactionRecord> {
+  const url = `${anchorUrl.replace(/\/$/, '')}/transaction`;
+
+  const res = await axios.get<{ transaction: Sep24TransactionRecord }>(url, {
+    params: { id: transactionId },
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+
+  return res.data.transaction;
 }

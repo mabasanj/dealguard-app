@@ -445,3 +445,65 @@ model DisputeMessage {
   @@index([senderId])
   @@index([createdAt])
 }
+
+// ─── SEP-24 Interactive Deposit / Withdrawal Sessions ────────────────────────
+
+enum Sep24Kind {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+enum Sep24Status {
+  INCOMPLETE
+  PENDING_EXTERNAL
+  PENDING_ANCHOR
+  PENDING_STELLAR
+  PENDING_TRUST
+  PENDING_USER
+  COMPLETED
+  REFUNDED
+  EXPIRED
+  NO_MARKET
+  TOO_SMALL
+  TOO_LARGE
+  ERROR
+}
+
+model Sep24Transaction {
+  id                      String      @id @default(cuid())
+
+  userId                  String
+  kind                    Sep24Kind
+  status                  Sep24Status @default(INCOMPLETE)
+
+  // Anchor-issued IDs
+  anchorTransactionId     String?     @unique  // ID returned by the anchor
+  stellarTransactionId    String?              // Stellar ledger txn hash
+  externalTransactionId   String?              // External payment reference
+
+  // Asset details
+  assetCode               String      @default("ZAR")
+  assetIssuer             String?
+  stellarAccount          String               // User's Stellar public key
+
+  // Amounts
+  amountIn                String?
+  amountOut               String?
+  amountFee               String?
+
+  // Anchor-provided interactive URL (for redirecting the user)
+  interactiveUrl          String?
+  moreInfoUrl             String?
+
+  // Memo used on the Stellar payment transaction
+  memo                    String?
+  memoType                String?
+
+  startedAt               DateTime    @default(now())
+  completedAt             DateTime?
+  updatedAt               DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([anchorTransactionId])
+}
