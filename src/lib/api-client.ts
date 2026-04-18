@@ -1,5 +1,10 @@
 // Frontend API Client Configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+// In the browser, always route through local Next.js API proxy endpoints.
+// This avoids production path mismatches between /auth/* and /api/auth/* on backend services.
+const API_BASE_URL =
+  typeof window !== 'undefined'
+    ? '/api'
+    : process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_API_URL || '/api';
 
 export interface ApiError {
   error: string;
