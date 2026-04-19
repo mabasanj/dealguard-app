@@ -16,6 +16,14 @@ import {
   zarpAccountBalancesController,
   zarpAddTrustlineController,
   zarpSendPaymentController,
+  sep10ChallengeController,
+  sep10ServerAuthController,
+  sep12GetOurCustomerController,
+  sep12PutOurCustomerController,
+  sep12DeleteOurCustomerController,
+  sep12AnchorGetCustomerController,
+  sep12AnchorPutCustomerController,
+  sep12AnchorDeleteCustomerController,
 } from '../controllers/stellar.controller';
 
 const router = Router();
@@ -155,5 +163,59 @@ router.post(
   ],
   zarpSendPaymentController
 );
+
+// ─── SEP-10: Web Authentication (Server) ─────────────────────────────────────
+
+// GET challenge — returns a transaction the wallet must sign
+router.get('/sep10/challenge', sep10ChallengeController);
+
+// POST auth — verify signed challenge, return platform JWT
+router.post(
+  '/sep10/auth',
+  [
+    body('transaction').notEmpty().isString().withMessage('transaction (signed XDR) is required'),
+  ],
+  sep10ServerAuthController
+);
+
+// ─── SEP-12: KYC (Our Platform) ──────────────────────────────────────────────
+
+// GET our stored KYC record for a Stellar account
+router.get('/sep12/customer', sep12GetOurCustomerController);
+
+// PUT / create-or-update our KYC record
+router.put(
+  '/sep12/customer',
+  [
+    body('account').notEmpty().isString().withMessage('account (Stellar public key) is required'),
+    body('first_name').optional().isString(),
+    body('last_name').optional().isString(),
+    body('email_address').optional().isEmail().withMessage('email_address must be a valid email'),
+    body('phone_number').optional().isString(),
+    body('birth_date').optional().isString(),
+    body('address').optional().isString(),
+    body('city').optional().isString(),
+    body('country_code').optional().isString().isLength({ min: 2, max: 3 }),
+    body('postal_code').optional().isString(),
+    body('id_type').optional().isIn(['passport', 'id_document', 'drivers_license']),
+    body('id_number').optional().isString(),
+    body('id_expiration').optional().isString(),
+  ],
+  sep12PutOurCustomerController
+);
+
+// DELETE our KYC record
+router.delete('/sep12/customer', sep12DeleteOurCustomerController);
+
+// ─── SEP-12: Anchor KYC Proxy ─────────────────────────────────────────────────
+
+// GET KYC status from ZARP anchor
+router.get('/sep12/anchor/customer', sep12AnchorGetCustomerController);
+
+// PUT KYC data to ZARP anchor
+router.put('/sep12/anchor/customer', sep12AnchorPutCustomerController);
+
+// DELETE KYC data at ZARP anchor
+router.delete('/sep12/anchor/customer', sep12AnchorDeleteCustomerController);
 
 export default router;

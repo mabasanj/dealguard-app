@@ -287,6 +287,7 @@ export async function resolveZarpAnchorEndpoints(): Promise<{
   authServer: string;
   assetCode: string;
   assetIssuer: string | undefined;
+  kycServer: string | undefined;
 }> {
   const assetCode = process.env.ZARP_ASSET_CODE || 'ZAR';
   const assetIssuer = process.env.ZARP_ASSET_ISSUER;
@@ -295,11 +296,13 @@ export async function resolveZarpAnchorEndpoints(): Promise<{
   // Try live discovery first; fall back to env var overrides
   let transferServer = process.env.ZARP_SEP24_URL || '';
   let authServer = '';
+  let kycServer: string | undefined = process.env.ZARP_KYC_URL;
 
   try {
     const tomlInfo = await fetchStellarToml(homeDomain);
     transferServer = tomlInfo.TRANSFER_SERVER_SEP0024 || tomlInfo.TRANSFER_SERVER || transferServer;
     authServer = tomlInfo.AUTH_SERVER || authServer;
+    kycServer = tomlInfo.KYC_SERVER || kycServer;
 
     // Resolve issuer from CURRENCIES if not explicitly set
     if (!assetIssuer && tomlInfo.CURRENCIES) {
@@ -312,5 +315,155 @@ export async function resolveZarpAnchorEndpoints(): Promise<{
     // Tolerate toml fetch failures — env vars are the fallback
   }
 
-  return { transferServer, authServer, assetCode, assetIssuer };
+  return { transferServer, authServer, assetCode, assetIssuer, kycServer };
+}
+
+// ─── SEP-10: Web Authentication Server ───────────────────────────────────────
+
+/**
+ * Generate a SEP-10 challenge transaction for a client to sign.
+ * Per SEP-10 spec: sequence=0, manage_data op, 5-min time bounds.
+ */
+export function generateSep10Challenge(accountPublicKey: string): {
+  xdr: string;
+  networkPassphrase: string;
+} {
+  const serverSecret = process.env.STELLAR_APP_SECRET_KEY;
+  if (!serverSecret) throw new Error('STELLAR_APP_SECRET_KEY is not configured');
+
+  const serverKeypair = StellarSdk.Keypair.fromSecret(serverSecret);
+  const networkPassphrase = getNetworkPassphrase();
+  const homeDomain = process.env.APP_HOME_DOMAIN || 'dealguard.app';
+
+  const challengeXdr = StellarSdk.Utils.buildChallengeTx(
+    serverKeypair,
+    accountPublicKey,
+    homeDomain,
+    300, // 5 minutes
+    networkPassphrase,
+    homeDomain
+  );
+
+  return { xdr: challengeXdr, networkPassphrase };
+}
+
+/**
+ * Verify a client-signed SEP-10 challenge transaction.
+ * Returns the Stellar public key that correctly signed the challenge.
+ */
+export function verifySep10Challenge(signedXdr: string): string {
+  const serverSecret = process.env.STELLAR_APP_SECRET_KEY;
+  if (!serverSecret) throw new Error('STELLAR_APP_SECRET_KEY is not configured');
+
+  const serverPublicKey =
+    process.env.STELLAR_APP_PUBLIC_KEY ||
+    StellarSdk.Keypair.fromSecret(serverSecret).publicKey();
+  const networkPassphrase = getNetworkPassphrase();
+  const homeDomain = process.env.APP_HOME_DOMAIN || 'dealguard.app';
+
+  const { clientAccountID } = StellarSdk.Utils.readChallengeTx(
+    signedXdr,
+    serverPublicKey,
+    networkPassphrase,
+    homeDomain,
+    homeDomain
+  );
+
+  StellarSdk.Utils.verifyChallengeTxSigners(
+    signedXdr,
+    serverPublicKey,
+    networkPassphrase,
+    [clientAccountID],
+    homeDomain,
+    homeDomain
+  );
+
+  return clientAccountID;
+}
+
+// ─── SEP-12: KYC API Client (calls anchor's KYC server) ──────────────────────
+
+export interface Sep12CustomerFields {
+  account?: string;
+  memo?: string;
+  memo_type?: string;
+  type?: string;
+  first_name?: string;
+  last_name?: string;
+  email_address?: string;
+  phone_number?: string;
+  birth_date?: string;
+  address?: string;
+  city?: string;
+  country_code?: string;
+  postal_code?: string;
+  id_type?: string;
+  id_number?: string;
+  id_expiration?: string;
+  [key: string]: string | undefined;
+}
+
+export interface Sep12CustomerResponse {
+  id: string;
+  status: 'NEEDS_INFO' | 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'PROCESSING';
+  provided_fields?: Record<string, { type: string; status: string; description?: string }>;
+  fields?: Record<string, { type: string; description: string; optional?: boolean }>;
+  message?: string;
+}
+
+/**
+ * SEP-12 GET — fetch a customer's KYC status from an anchor.
+ */
+export async function sep12GetCustomer(
+  kycServerUrl: string,
+  jwt: string,
+  account: string,
+  type?: string
+): Promise<Sep12CustomerResponse> {
+  const url = `${kycServerUrl.replace(/\/$/, '')}/customer`;
+  const params: Record<string, string> = { account };
+  if (type) params.type = type;
+
+  const res = await axios.get<Sep12CustomerResponse>(url, {
+    params,
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+
+  return res.data;
+}
+
+/**
+ * SEP-12 PUT — create or update KYC data at an anchor.
+ */
+export async function sep12PutCustomer(
+  kycServerUrl: string,
+  jwt: string,
+  fields: Sep12CustomerFields
+): Promise<{ id: string; status: string }> {
+  const url = `${kycServerUrl.replace(/\/$/, '')}/customer`;
+
+  const res = await axios.put<{ id: string; status: string }>(url, fields, {
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  return res.data;
+}
+
+/**
+ * SEP-12 DELETE — delete a customer's KYC data at an anchor.
+ */
+export async function sep12DeleteCustomer(
+  kycServerUrl: string,
+  jwt: string,
+  account: string
+): Promise<void> {
+  const url = `${kycServerUrl.replace(/\/$/, '')}/customer`;
+
+  await axios.delete(url, {
+    data: { account },
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
 }

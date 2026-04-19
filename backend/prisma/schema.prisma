@@ -446,6 +446,64 @@ model DisputeMessage {
   @@index([createdAt])
 }
 
+// ─── SEP-12 KYC ──────────────────────────────────────────────────────────────
+
+enum KycStatus {
+  NEEDS_INFO
+  PENDING
+  PROCESSING
+  ACCEPTED
+  REJECTED
+}
+
+model Sep12Customer {
+  id              String    @id @default(cuid())
+
+  // Link to app user (optional — may be looked up by Stellar account only)
+  userId          String?
+
+  // The Stellar public key this KYC record belongs to
+  stellarAccount  String    @unique
+
+  // Basic identity
+  firstName       String?
+  lastName        String?
+  email           String?
+  phone           String?
+  dateOfBirth     String?   // ISO-8601 date string
+
+  // Address
+  address         String?
+  city            String?
+  country         String?   // ISO 3166-1 alpha-3
+  postalCode      String?
+
+  // Government ID
+  idType          String?   // passport | id_document | drivers_license
+  idNumber        String?
+  idExpiry        String?   // ISO-8601 date string
+
+  // KYC status (our platform's decision)
+  status          KycStatus @default(NEEDS_INFO)
+  statusMessage   String?   // Rejection reason or additional info
+
+  // Anchor reference (after submitting to anchor via SEP-12)
+  anchorCustomerId String?
+  anchorStatus     String?
+  anchorMessage    String?
+
+  // Raw anchor fields response stored as JSON
+  providedFields  Json?
+  requiredFields  Json?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([stellarAccount])
+  @@index([userId])
+  @@index([status])
+}
+
 // ─── SEP-24 Interactive Deposit / Withdrawal Sessions ────────────────────────
 
 enum Sep24Kind {

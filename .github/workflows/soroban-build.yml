@@ -205,7 +205,8 @@ jobs:
     if: |
       github.event_name == 'workflow_dispatch' &&
       github.event.inputs.deploy_target == 'mainnet'
-    environment: mainnet
+    environment:
+      name: mainnet
     steps:
       - uses: actions/checkout@v4
 

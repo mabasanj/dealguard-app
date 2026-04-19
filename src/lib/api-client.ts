@@ -62,13 +62,14 @@ class ApiClient {
   async request<T>(
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
-    body?: any
+    body?: any,
+    extraHeaders?: HeadersInit
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
 
     const options: RequestInit = {
       method,
-      headers: this.getHeaders(),
+      headers: { ...this.getHeaders(), ...extraHeaders },
     };
 
     if (body) {
@@ -108,24 +109,24 @@ class ApiClient {
     }
   }
 
-  get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, 'GET');
+  get<T>(endpoint: string, options?: { headers?: HeadersInit }): Promise<T> {
+    return this.request<T>(endpoint, 'GET', undefined, options?.headers);
   }
 
-  post<T>(endpoint: string, body: any): Promise<T> {
-    return this.request<T>(endpoint, 'POST', body);
+  post<T>(endpoint: string, body: any, options?: { headers?: HeadersInit }): Promise<T> {
+    return this.request<T>(endpoint, 'POST', body, options?.headers);
   }
 
-  patch<T>(endpoint: string, body: any): Promise<T> {
-    return this.request<T>(endpoint, 'PATCH', body);
+  patch<T>(endpoint: string, body: any, options?: { headers?: HeadersInit }): Promise<T> {
+    return this.request<T>(endpoint, 'PATCH', body, options?.headers);
   }
 
-  put<T>(endpoint: string, body: any): Promise<T> {
-    return this.request<T>(endpoint, 'PUT', body);
+  put<T>(endpoint: string, body: any, options?: { headers?: HeadersInit }): Promise<T> {
+    return this.request<T>(endpoint, 'PUT', body, options?.headers);
   }
 
-  delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, 'DELETE');
+  delete<T>(endpoint: string, options?: { headers?: HeadersInit }): Promise<T> {
+    return this.request<T>(endpoint, 'DELETE', undefined, options?.headers);
   }
 }
 
