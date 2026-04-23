@@ -1,15 +1,24 @@
 import NextAuth, { type NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { getBackendApiBaseUrl } from '@/lib/backend-url';
 
 const RAW_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 function getServerApiBaseUrl(): string {
-  if (RAW_API_BASE_URL.startsWith('http://') || RAW_API_BASE_URL.startsWith('https://')) {
-    return RAW_API_BASE_URL;
+  const backendApiBaseUrl = process.env.BACKEND_API_URL;
+  if (backendApiBaseUrl) {
+    return backendApiBaseUrl.replace(/\/$/, '').endsWith('/api')
+      ? backendApiBaseUrl.replace(/\/$/, '')
+      : `${backendApiBaseUrl.replace(/\/$/, '')}/api`;
   }
 
-  const appBase = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  return `${appBase.replace(/\/$/, '')}${RAW_API_BASE_URL.startsWith('/') ? '' : '/'}${RAW_API_BASE_URL}`;
+  if (RAW_API_BASE_URL.startsWith('http://') || RAW_API_BASE_URL.startsWith('https://')) {
+    return RAW_API_BASE_URL.replace(/\/$/, '').endsWith('/api')
+      ? RAW_API_BASE_URL.replace(/\/$/, '')
+      : `${RAW_API_BASE_URL.replace(/\/$/, '')}/api`;
+  }
+
+  return getBackendApiBaseUrl();
 }
 
 const authOptions: NextAuthOptions = {

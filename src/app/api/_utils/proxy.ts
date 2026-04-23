@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.BACKEND_API_URL ||
-  (process.env.RENDER ? 'https://dealguard-backend.onrender.com/api' : 'http://localhost:5001/api');
+import { getBackendApiBaseUrl } from '@/lib/backend-url';
 
 function sanitizeRequestHeaders(request: NextRequest): Headers {
   const headers = new Headers();
@@ -20,12 +16,14 @@ function sanitizeRequestHeaders(request: NextRequest): Headers {
 }
 
 function buildTargetUrl(pathname: string, search: string): string {
+  const API_BASE_URL = getBackendApiBaseUrl();
   const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
   return `${base}${path}${search}`;
 }
 
 function getFallbackTargetUrls(pathname: string, search: string): string[] {
+  const API_BASE_URL = getBackendApiBaseUrl();
   const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
   const fallbacks: string[] = [];
