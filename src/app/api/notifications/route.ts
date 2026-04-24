@@ -4,7 +4,3 @@ import { proxyToBackend } from '../_utils/proxy';
 export async function GET(request: NextRequest) {
   return proxyToBackend(request, '/notifications');
 }
-
-export async function PATCH(request: NextRequest) {
-  return proxyToBackend(request, '/notifications');
-}
