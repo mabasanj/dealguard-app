@@ -93,10 +93,10 @@ io.on('connection', (socket) => {
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-  console.log(`🚀 SafeHaven Escrow API server running on port ${PORT}`);
+  console.log(`🚀 DealGuard API server running on port ${PORT}`);
   console.log(`📊 Health check available at http://localhost:${PORT}/health`);
 });
 
