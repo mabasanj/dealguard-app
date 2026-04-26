@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: backend
     plan: free
-    buildCommand: npm ci ; npx prisma generate ; npm run build
+    buildCommand: npm ci ; npx prisma generate ; npx prisma db push --accept-data-loss ; npm run build
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
@@ -17,7 +17,7 @@ services:
           name: dealguard-db
           property: connectionString
       - key: FRONTEND_URL
-        value: https://dealguard-frontend.onrender.com
+        value: https://dealguard-app.vercel.app
       - key: JWT_SECRET
         generateValue: true
       - key: STRIPE_SECRET_KEY
