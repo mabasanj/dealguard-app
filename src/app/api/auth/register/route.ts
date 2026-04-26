@@ -6,17 +6,17 @@ export async function POST(request: NextRequest) {
   const body = await request.text();
   const headers = new Headers(request.headers);
 
-  const makeRequest = (path: string) =>
+  const makeRequest = () =>
     new NextRequest(new Request(`${request.nextUrl.origin}${request.nextUrl.pathname}`, {
       method: 'POST',
       headers,
       body,
     }));
 
-  const registerResponse = await proxyToBackend(makeRequest('/auth/register'), '/auth/register');
+  const registerResponse = await proxyToBackend(makeRequest(), '/auth/register');
 
   if (registerResponse.status === 404) {
-    return proxyToBackend(makeRequest('/auth/signup'), '/auth/signup');
+    return proxyToBackend(makeRequest(), '/auth/signup');
   }
 
   return registerResponse;
