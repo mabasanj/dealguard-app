@@ -38,7 +38,7 @@ export default function Home() {
                 Log in
               </Link>
             </div>
-            <p className="text-white/30 text-sm mt-5">No monthly subscription &middot; 7% fee only when a deal is completed</p>
+            <p className="text-white/30 text-sm mt-5">No monthly subscription &middot; 7% fee only when a deal is completed &middot; If a dispute is raised, funds stay in escrow until resolution</p>
           </div>
 
           {/* Hero visual mockup */}
