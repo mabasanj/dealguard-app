@@ -30,7 +30,7 @@ export default function AdminDashboard() {
 
   const [metrics, setMetrics] = useState<SystemMetrics>({
     activeUsers: 142,
-    totalTransactions: 1,284,
+    totalTransactions: 1284,
     totalValue: 2_450_000,
     activeEscrows: 89,
     failedTransactions: 3,
