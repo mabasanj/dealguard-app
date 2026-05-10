@@ -5,9 +5,10 @@ import {
   getDisputes,
   getDisputeById,
   addDisputeMessage,
-  resolveDispute
+  resolveDispute,
+  getAdminDisputesQueue
 } from '../controllers/dispute.controller';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, requireRole } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -20,11 +21,18 @@ router.post('/', [
   body('reason').isIn(['ITEM_NOT_RECEIVED', 'ITEM_NOT_AS_DESCRIBED', 'QUALITY_ISSUES', 'LATE_DELIVERY', 'OTHER'])
     .withMessage('Invalid dispute reason'),
   body('description').notEmpty().withMessage('Description is required'),
-  body('evidence').optional().isArray()
+  body('evidence').isArray({ min: 1 })
+    .withMessage('Evidence is required (upload at least one photo/video link)')
 ], createDispute);
 
 // Get user's disputes
 router.get('/', getDisputes);
+
+// Admin weighted queue (senior-staff triage)
+// NOTE: must be declared before "/:id" so "admin" isn't parsed as an id
+router.get('/admin/queue', [
+  requireRole(['ADMIN']),
+], getAdminDisputesQueue);
 
 // Get specific dispute
 router.get('/:id', getDisputeById);
@@ -38,6 +46,7 @@ router.post('/:disputeId/messages', [
 
 // Resolve dispute (admin only - should be restricted)
 router.post('/:disputeId/resolve', [
+  requireRole(['ADMIN']),
   body('resolution').isIn(['REFUND_BUYER', 'PAY_SELLER', 'SPLIT'])
     .withMessage('Invalid resolution'),
   body('winnerId').optional().isString(),

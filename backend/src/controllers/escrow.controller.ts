@@ -5,7 +5,9 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
-const TRANSACTION_FEE_RATE = 0.07;
+const TRANSACTION_FEE_RATE_LOW = 0.07; // < R5,000
+const TRANSACTION_FEE_RATE_HIGH = 0.05; // >= R5,000
+const DELIVERY_GRACE_PERIOD_MS = 24 * 60 * 60 * 1000;
 
 export const createEscrow = async (req: AuthRequest, res: Response) => {
   try {
@@ -53,7 +55,9 @@ export const createEscrow = async (req: AuthRequest, res: Response) => {
 
     // Platform fee is fixed at 7% of transaction amount only (other charges are excluded).
     const numericAmount = Number(amount);
-    const platformFee = Number((numericAmount * TRANSACTION_FEE_RATE).toFixed(2));
+    const platformFeeRate =
+      numericAmount < 5000 ? TRANSACTION_FEE_RATE_LOW : TRANSACTION_FEE_RATE_HIGH;
+    const platformFee = Number((numericAmount * platformFeeRate).toFixed(2));
     const sellerReceives = Number((numericAmount - platformFee).toFixed(2));
     const reference = `ESC-${uuidv4().substring(0, 8).toUpperCase()}`;
 
@@ -263,6 +267,7 @@ export const updateEscrowStatus = async (req: AuthRequest, res: Response) => {
       where: { id },
       data: {
         status: status as EscrowStatus,
+        ...(status === 'DELIVERED' && { deliveredAt: new Date() }),
         ...(status === 'COMPLETED' && { completedAt: new Date() }),
         ...(status === 'CANCELLED' && { cancelledAt: new Date() })
       },
@@ -338,7 +343,8 @@ export const releaseFunds = async (req: AuthRequest, res: Response) => {
       where: { id },
       include: {
         buyer: true,
-        seller: true
+        seller: true,
+        dispute: true
       }
     });
 
@@ -346,7 +352,7 @@ export const releaseFunds = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Escrow not found' });
     }
 
-    // Only buyer can release funds
+    // Only buyer can trigger the "First Key" action (MVP).
     if (escrow.buyerId !== req.user!.id) {
       return res.status(403).json({ error: 'Only buyer can release funds' });
     }
@@ -355,7 +361,27 @@ export const releaseFunds = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Escrow must be in DELIVERED status to release funds' });
     }
 
-    // Update status to COMPLETED
+    const deliveredAt = escrow.deliveredAt;
+    if (!deliveredAt) {
+      return res.status(422).json({ error: 'deliveredAt is required to release funds' });
+    }
+
+    const graceDeadlineMs = deliveredAt.getTime() + DELIVERY_GRACE_PERIOD_MS;
+    const nowMs = Date.now();
+    const inGraceWindow = nowMs <= graceDeadlineMs;
+
+    // If a dispute exists and is still active, funds are frozen for Buyer First-Key.
+    const hasActiveDispute =
+      escrow.dispute && ['OPEN', 'UNDER_REVIEW'].includes(escrow.dispute.status);
+
+    if (hasActiveDispute) {
+      return res.status(409).json({ error: 'Funds are locked due to an active dispute' });
+    }
+
+    // If grace window has elapsed and no dispute exists, we allow release.
+    // (Auto-release is not implemented as a background job yet; this endpoint acts as the MVP approximation.)
+    void inGraceWindow;
+
     const updatedEscrow = await prisma.escrow.update({
       where: { id },
       data: {
@@ -368,7 +394,6 @@ export const releaseFunds = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Transfer funds to seller
     await prisma.$transaction(async (tx) => {
       await tx.walletBalance.upsert({
         where: { userId: escrow.sellerId },
@@ -389,7 +414,9 @@ export const releaseFunds = async (req: AuthRequest, res: Response) => {
 
     res.json({
       escrow: updatedEscrow,
-      message: 'Funds released successfully'
+      message: inGraceWindow
+        ? 'Funds released (approved by buyer during grace period)'
+        : 'Funds released (auto-release after grace period - MVP approximation)'
     });
   } catch (error) {
     console.error('Release funds error:', error);

@@ -38,6 +38,14 @@ export const disputeApi = {
     return apiClient.get(`/disputes?${params.toString()}`);
   },
 
+  // Admin senior-staff weighted triage queue
+  getAdminQueue: async (page: number = 1, limit: number = 20): Promise<any> => {
+    const params = new URLSearchParams();
+    params.append('page', String(page));
+    params.append('limit', String(limit));
+    return apiClient.get(`/disputes/admin/queue?${params.toString()}`);
+  },
+
   getById: async (id: string): Promise<any> => {
     return apiClient.get(`/disputes/${id}`);
   },

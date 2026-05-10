@@ -15,6 +15,12 @@ export const createDispute = async (req: AuthRequest, res: Response) => {
     const { escrowId, reason, description, evidence, evidenceUrls } = req.body;
     const normalizedEvidence = evidenceUrls || evidence || [];
 
+    if (!Array.isArray(normalizedEvidence) || normalizedEvidence.length < 1) {
+      return res.status(422).json({
+        error: 'Evidence is required to open a dispute',
+      });
+    }
+
     // Find escrow
     const escrow = await prisma.escrow.findUnique({
       where: { id: escrowId },
@@ -34,10 +40,25 @@ export const createDispute = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'Unauthorized to create dispute for this escrow' });
     }
 
-    // Check if escrow can be disputed
-    const disputableStatuses = ['FUNDED', 'IN_DELIVERY', 'DELIVERED'];
+    // Check if escrow can be disputed (PRD: dispute window begins after delivery)
+    const disputableStatuses: EscrowStatus[] = ['DELIVERED'];
     if (!disputableStatuses.includes(escrow.status)) {
-      return res.status(400).json({ error: 'Escrow cannot be disputed at this stage' });
+      return res.status(400).json({ error: 'Escrow can only be disputed after delivery' });
+    }
+
+    const deliveredAt = (escrow as any).deliveredAt as Date | string | null | undefined;
+
+    if (!deliveredAt) {
+      return res.status(422).json({ error: 'deliveredAt is required to open a dispute' });
+    }
+
+    const deliveredAtMs = new Date(deliveredAt).getTime();
+    const graceDeadlineMs = deliveredAtMs + 24 * 60 * 60 * 1000;
+
+    if (Date.now() > graceDeadlineMs) {
+      return res.status(403).json({
+        error: 'Dispute window has expired (24 hours after delivery)',
+      });
     }
 
     // Check if dispute already exists
@@ -194,8 +215,11 @@ export const getDisputeById = async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Dispute not found' });
     }
 
-    // Check if user is involved in the escrow
-    if (dispute.escrow.buyerId !== req.user!.id && dispute.escrow.sellerId !== req.user!.id) {
+    // Check if user is involved in the escrow (or admin)
+    const isInvolved =
+      dispute.escrow.buyerId === req.user!.id || dispute.escrow.sellerId === req.user!.id;
+
+    if (!isInvolved && req.user!.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Unauthorized to view this dispute' });
     }
 
@@ -267,8 +291,11 @@ export const resolveDispute = async (req: AuthRequest, res: Response) => {
     const { disputeId } = req.params;
     const { resolution, winnerId, refundAmount, notes } = req.body;
 
-    // Only admin can resolve disputes - in a real app, check for admin role
-    // For now, allow any user to resolve (this should be restricted)
+    // Controller-level guard (route middleware already restricts, but keep it safe)
+    if (!req.user || req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+
     const dispute = await prisma.dispute.findUnique({
       where: { id: disputeId },
       include: {
@@ -389,5 +416,109 @@ export const resolveDispute = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Resolve dispute error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getAdminDisputesQueue = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user || req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    const disputes = await prisma.dispute.findMany({
+      where: {
+        status: {
+          in: ['OPEN', 'UNDER_REVIEW'],
+        },
+      },
+      include: {
+        initiator: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            completedTransactions: true,
+            rating: true,
+          },
+        },
+        escrow: {
+          select: {
+            id: true,
+            title: true,
+            amount: true,
+            currency: true,
+            status: true,
+            buyerId: true,
+            sellerId: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // MVP Weighted Queue:
+    // - High value (>= R10,000) first
+    // - Within bucket: FIFO (oldest first)
+    // - Risk is a placeholder heuristic (used for UI badges)
+    const scored = disputes.map((d) => {
+      const highValue = d.escrow.amount >= 10000;
+
+      const ageMs = Date.now() - d.createdAt.getTime();
+      const risk =
+        d.initiator.completedTransactions < 5 || d.initiator.rating < 2.5
+          ? 'MODERATE_RISK'
+          : 'LOW_RISK';
+
+      return {
+        disputeId: d.id,
+        escrowId: d.escrowId,
+        status: d.status,
+        createdAt: d.createdAt,
+        ageMs,
+        highValue,
+        risk,
+        escrow: {
+          id: d.escrow.id,
+          title: d.escrow.title,
+          amount: d.escrow.amount,
+          currency: d.escrow.currency,
+          status: d.escrow.status,
+        },
+        initiator: {
+          id: d.initiator.id,
+          name: d.initiator.name,
+          email: d.initiator.email,
+          completedTransactions: d.initiator.completedTransactions,
+          rating: d.initiator.rating,
+        },
+        evidenceUrls: d.evidenceUrls,
+      };
+    });
+
+    scored.sort((a, b) => {
+      const ah = a.highValue ? 0 : 1;
+      const bh = b.highValue ? 0 : 1;
+      if (ah !== bh) return ah - bh;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+
+    const total = scored.length;
+    const items = scored.slice(offset, offset + Number(limit));
+
+    return res.json({
+      items,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error) {
+    console.error('Get admin disputes queue error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
